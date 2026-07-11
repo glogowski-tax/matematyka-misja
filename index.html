@@ -406,6 +406,38 @@
   .btn-ghost { background: var(--surface-2); color: var(--ink); }
   .btn-ghost:hover { border-color: var(--accent); }
   .btn-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+  .btn-accent { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+  /* ---------- player name ---------- */
+  .player-row { display: flex; align-items: center; gap: 10px; }
+  .player-row label { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-faint); }
+  .player-row input {
+    flex: 1; max-width: 240px;
+    padding: 9px 13px; border-radius: 12px;
+    border: 1.5px solid var(--line); background: var(--surface); color: var(--ink);
+    font: inherit; font-size: 14px;
+  }
+  .player-row input:focus { outline: none; border-color: var(--accent); }
+
+  /* ---------- finish button ---------- */
+  .finish-btn {
+    display: none; width: 100%;
+    font-family: var(--font-display); font-size: 16px;
+    padding: 14px 18px; border-radius: var(--r);
+    border: 1.5px dashed var(--accent);
+    background: var(--accent-soft); color: var(--accent);
+    cursor: pointer; transition: transform .1s ease;
+  }
+  .finish-btn:hover { transform: translateY(-1px); }
+
+  /* ---------- done screen ---------- */
+  .done-dzial { font-family: var(--font-display); font-size: 22px; color: var(--accent); margin-bottom: 14px; }
+  .done-stats { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; color: var(--ink-soft); font-size: 14px; margin-bottom: 14px; }
+  .done-stats b { color: var(--ink); font-family: var(--font-display); font-size: 18px; font-variant-numeric: tabular-nums; }
+  .done-status { display: inline-block; font-family: var(--font-display); font-size: 16px; padding: 8px 18px; border-radius: 99px; margin-bottom: 12px; }
+  .done-status.ok { background: var(--success-soft); color: var(--success); }
+  .done-status.no { background: var(--danger-soft); color: var(--danger); }
+  .done-note { font-size: 12.5px; color: var(--ink-faint); }
 </style>
 </head>
 <body>
@@ -419,6 +451,17 @@
     <div class="modal-actions">
       <button class="btn-ghost" id="resetCancel" type="button">Anuluj</button>
       <button class="btn-danger" id="resetConfirm" type="button">Zacznij od nowa</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-back" id="doneModal" role="dialog" aria-modal="true" aria-labelledby="doneTitle">
+  <div class="modal">
+    <h2 id="doneTitle">Dział ukończony! 🎉</h2>
+    <div id="doneBody"></div>
+    <div class="modal-actions" style="margin-top: 20px;">
+      <button class="btn-ghost" id="doneOther" type="button">Zamknij</button>
+      <button class="btn-accent" id="doneAgain" type="button">Graj dalej</button>
     </div>
   </div>
 </div>
@@ -462,6 +505,10 @@
   </div>
 
   <section class="picker" aria-label="Wybór działu">
+    <div class="player-row">
+      <label for="playerName">Gracz</label>
+      <input id="playerName" type="text" maxlength="20" placeholder="wpisz imię" autocomplete="off">
+    </div>
     <div class="picker-title">Dział — wybierz, co ćwiczyć</div>
     <div class="chips" id="chips"></div>
   </section>
@@ -473,6 +520,8 @@
     <div class="feedback" id="feedback" role="status" aria-live="polite"></div>
     <button class="next-btn" id="nextBtn">Dalej →</button>
   </main>
+
+  <button class="finish-btn" id="finishBtn" type="button">🏁 Zakończ dział i wyślij raport</button>
 
   <section class="badges-wrap">
     <div class="badges-title">Odznaki</div>
@@ -674,6 +723,23 @@
 
   const LEVEL_STEP = 100;
 
+  // --- raportowanie do Google Forms (panel rodzica) ---
+  const REPORT = {
+    enabled: true,
+    url: "https://docs.google.com/forms/d/e/1FAIpQLSff2Vazo6lmshvnDu8hM2ynPR15CCsWSXqdjkq4BAFRoVfnCg/formResponse",
+    f: {
+      name: "entry.494276556",
+      dzial: "entry.319717124",
+      zadania: "entry.1241410035",
+      poprawne: "entry.514978592",
+      celnosc: "entry.24679080",
+      poziom: "entry.1759595029",
+      status: "entry.1395870384"
+    },
+    target: 15,   // ile zadań z działu = ukończenie
+    passPct: 80   // próg zaliczenia (%)
+  };
+
   // ---------- state ----------
   const SAVE_KEY = "matematyczna-misja-v1";
   let state = {
@@ -681,12 +747,15 @@
     solved: 0, correctCount: 0, best: 0, earned: {}
   };
   let selected = new Set(CATS.map((c) => c.key));
+  let pName = "";
+  let podejscie = { key: null, count: 0, correct: 0 };
   function load() {
     try {
       const raw = localStorage.getItem(SAVE_KEY);
       if (raw) {
         const s = JSON.parse(raw);
         state.best = s.best || 0; state.earned = s.earned || {};
+        pName = s.name || "";
         if (Array.isArray(s.selected) && s.selected.length) {
           const valid = s.selected.filter((k) => CATS.some((c) => c.key === k));
           if (valid.length) selected = new Set(valid);
@@ -695,7 +764,7 @@
     } catch (e) {}
   }
   function save() {
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ best: state.best, earned: state.earned, selected: [...selected] })); } catch (e) {}
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ best: state.best, earned: state.earned, selected: [...selected], name: pName })); } catch (e) {}
   }
 
   let current = null;
@@ -751,7 +820,7 @@
       box.appendChild(b);
     });
   }
-  function afterPick() { save(); renderChips(); newQuestion(); }
+  function afterPick() { save(); renderChips(); resetPodejscie(); newQuestion(); }
 
   function newQuestion() {
     answered = false;
@@ -809,10 +878,22 @@
       fb.className = "feedback no show";
       fb.innerHTML = `<span class="fb-emoji">🤔</span><div class="fb-text"><b>Prawie!</b><span>${current.explain}</span></div>`;
     }
+    // śledzenie ukończenia działu (gdy wybrany jeden dział)
+    const k = singleKey();
+    if (k) {
+      if (podejscie.key !== k) podejscie = { key: k, count: 0, correct: 0 };
+      podejscie.count++;
+      if (opt.correct) podejscie.correct++;
+    } else {
+      podejscie = { key: null, count: 0, correct: 0 };
+    }
+
     checkBadges();
     updateHUD();
+    updateFinishBtn();
     save();
     const nb = $("nextBtn"); nb.classList.add("show"); nb.focus();
+    if (k && podejscie.count >= REPORT.target) setTimeout(completeDzial, 650);
   }
 
   function levelUp(from, to) {
@@ -886,8 +967,70 @@
     }
   }
 
+  // ---------- raport / ukończenie działu ----------
+  function singleKey() { return selected.size === 1 ? [...selected][0] : null; }
+
+  function resetPodejscie() { podejscie = { key: singleKey(), count: 0, correct: 0 }; updateFinishBtn(); }
+
+  function updateFinishBtn() {
+    const btn = $("finishBtn");
+    if (!btn) return;
+    if (singleKey() && podejscie.count > 0) {
+      btn.style.display = "block";
+      btn.textContent = `🏁 Zakończ dział i wyślij raport (${podejscie.count}/${REPORT.target})`;
+    } else {
+      btn.style.display = "none";
+    }
+  }
+
+  function sendReport(d) {
+    if (!REPORT.enabled) return;
+    try {
+      const body = new URLSearchParams();
+      body.append(REPORT.f.name, d.name);
+      body.append(REPORT.f.dzial, d.dzial);
+      body.append(REPORT.f.zadania, d.zadania);
+      body.append(REPORT.f.poprawne, d.poprawne);
+      body.append(REPORT.f.celnosc, d.celnosc);
+      body.append(REPORT.f.poziom, d.poziom);
+      body.append(REPORT.f.status, d.status);
+      fetch(REPORT.url, { method: "POST", mode: "no-cors", body: body });
+    } catch (e) {}
+  }
+
+  function completeDzial() {
+    const cat = CATS.find((c) => c.key === podejscie.key);
+    const total = podejscie.count, correct = podejscie.correct;
+    if (!total) return;
+    const pct = Math.round(correct / total * 100);
+    const ok = pct >= REPORT.passPct;
+    const status = ok ? "Zaliczony" : "Do poprawy";
+    sendReport({
+      name: pName || "Dziecko",
+      dzial: cat ? cat.name : "—",
+      zadania: String(total),
+      poprawne: String(correct),
+      celnosc: pct + "%",
+      poziom: String(state.level),
+      status: status
+    });
+    $("doneTitle").textContent = ok ? "Dział ukończony! 🎉" : "Dobra próba! 💪";
+    $("doneBody").innerHTML =
+      `<div class="done-dzial">${cat ? cat.name : ""}</div>` +
+      `<div class="done-stats"><span><b>${correct}</b>/${total} dobrze</span><span><b>${pct}%</b> celności</span><span>Poziom <b>${state.level}</b></span></div>` +
+      `<div class="done-status ${ok ? "ok" : "no"}">${status}</div>` +
+      `<div class="done-note">📤 Wynik wysłany rodzicowi</div>`;
+    $("doneModal").classList.add("show");
+    if (ok) confetti();
+    resetPodejscie();
+  }
+
   // ---------- controls ----------
   $("nextBtn").addEventListener("click", newQuestion);
+  $("finishBtn").addEventListener("click", () => { if (podejscie.count > 0) completeDzial(); });
+  $("doneAgain").addEventListener("click", () => { $("doneModal").classList.remove("show"); newQuestion(); });
+  $("doneOther").addEventListener("click", () => { $("doneModal").classList.remove("show"); });
+  $("playerName").addEventListener("input", (e) => { pName = e.target.value; save(); });
 
   $("soundBtn").addEventListener("click", (e) => {
     soundOn = !soundOn;
@@ -921,6 +1064,7 @@
   // keyboard: 1-4 choose, Enter/Space -> next
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && resetModal.classList.contains("show")) { closeReset(); return; }
+    if (e.key === "Escape" && $("doneModal").classList.contains("show")) { $("doneModal").classList.remove("show"); return; }
     if (e.key >= "1" && e.key <= "4") {
       const idx = +e.key - 1;
       if (!answered && current && idx < current.options.length) { choose(idx); e.preventDefault(); }
@@ -931,9 +1075,11 @@
 
   // ---------- boot ----------
   load();
+  $("playerName").value = pName;
   renderChips();
   renderBadges();
   updateHUD();
+  resetPodejscie();
   newQuestion();
 })();
 </script>
