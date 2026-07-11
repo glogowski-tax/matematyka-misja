@@ -192,6 +192,19 @@
   .picker { display: flex; flex-direction: column; gap: 9px; }
   .picker-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-faint); padding: 0 4px; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .subjects { display: flex; flex-wrap: wrap; gap: 8px; }
+  .subject-tab {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 11px 18px; border-radius: 14px;
+    border: 1.5px solid var(--line); background: var(--surface);
+    color: var(--ink); font-family: var(--font-display); font-size: 16px;
+    cursor: pointer;
+    transition: transform .1s ease, border-color .12s ease, background .12s ease, color .12s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .subject-tab .fi { font-size: 18px; }
+  .subject-tab:hover { transform: translateY(-1px); border-color: var(--accent); }
+  .subject-tab.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
   .fchip {
     display: inline-flex; align-items: center; gap: 7px;
     padding: 9px 14px; border-radius: 99px;
@@ -472,7 +485,7 @@
       <div class="mark" aria-hidden="true">🧮</div>
       <div>
         <h1>Matematyczna Misja</h1>
-        <p>Trening dla klasy 5–6 · zbieraj punkty i odznaki</p>
+        <p>Ćwiczenia i quizy · klasa 5–6 · punkty i odznaki</p>
       </div>
     </div>
     <div class="top-controls">
@@ -509,6 +522,8 @@
       <label for="playerName">Gracz</label>
       <input id="playerName" type="text" maxlength="20" placeholder="wpisz imię" autocomplete="off">
     </div>
+    <div class="picker-title">Przedmiot</div>
+    <div class="subjects" id="subjects"></div>
     <div class="picker-title">Dział — wybierz, co ćwiczyć</div>
     <div class="chips" id="chips"></div>
   </section>
@@ -699,8 +714,8 @@
     };
   }
 
-  // działy do wyboru — stabilny klucz, nazwa, ikonka, generator
-  const CATS = [
+  // --- MATEMATYKA: działy z generatorami zadań ---
+  const MATH_CATS = [
     { key: "aryt", name: "Działania", icon: "➕", fn: genAryt },
     { key: "kol", name: "Kolejność", icon: "🔢", fn: genKolejnosc },
     { key: "proc", name: "Procenty", icon: "％", fn: genProcent },
@@ -708,6 +723,83 @@
     { key: "geom", name: "Geometria", icon: "📐", fn: genGeom },
     { key: "alg", name: "Algebra", icon: "🅧", fn: genRownania }
   ];
+
+  // --- HISTORIA: banki pytań (poziom klasy 5-6) ---
+  const HIST_CATS = [
+    { key: "h_star", name: "Starożytność", icon: "🏛️", bank: [
+      { q: "Nad którą rzeką rozwinęła się starożytna cywilizacja Egiptu?", opts: ["Nil", "Wisła", "Amazonka", "Tygrys"], ci: 0, e: "Egipt nazywano „darem Nilu” — rzeka użyźniała pola. Odpowiedź: Nil." },
+      { q: "Jak nazywają się wielkie grobowce egipskich faraonów?", opts: ["Piramidy", "Świątynie", "Akwedukty", "Zamki"], ci: 0, e: "Faraonów chowano w piramidach (np. w Gizie)." },
+      { q: "W którym greckim mieście-państwie narodziła się demokracja?", opts: ["Ateny", "Sparta", "Troja", "Kartagina"], ci: 0, e: "Demokracja („rządy ludu”) powstała w Atenach." },
+      { q: "Pismo starożytnych Egipcjan to...", opts: ["hieroglify", "runy", "alfabet łaciński", "cyfry arabskie"], ci: 0, e: "Egipcjanie pisali hieroglifami." },
+      { q: "Jak nazywała się rzymska budowla, w której walczyli gladiatorzy?", opts: ["Koloseum", "Partenon", "Akropol", "Forum"], ci: 0, e: "Walki gladiatorów odbywały się w Koloseum w Rzymie." },
+      { q: "Legendarni założyciele Rzymu to bracia...", opts: ["Romulus i Remus", "Kastor i Polluks", "Hektor i Parys", "Ikar i Dedal"], ci: 0, e: "Wg legendy Rzym założyli Romulus i Remus, wykarmieni przez wilczycę." },
+      { q: "Który wódz stworzył wielkie imperium, a jego nauczycielem był Arystoteles?", opts: ["Aleksander Wielki", "Juliusz Cezar", "Leonidas", "Perykles"], ci: 0, e: "Aleksander Wielki (Macedoński) podbił m.in. Persję." },
+      { q: "Słynne zawody sportowe w starożytnej Grecji to...", opts: ["igrzyska olimpijskie", "turnieje rycerskie", "wyścigi rydwanów", "gladiatury"], ci: 0, e: "Igrzyska olimpijskie organizowano w Olimpii ku czci Zeusa." },
+      { q: "Rzymski wódz i polityk zamordowany w 44 r. p.n.e.:", opts: ["Juliusz Cezar", "Neron", "Hannibal", "Spartakus"], ci: 0, e: "Gajusz Juliusz Cezar zginął zasztyletowany w senacie." },
+      { q: "Najważniejszy bóg starożytnych Greków, władca Olimpu:", opts: ["Zeus", "Posejdon", "Hades", "Apollo"], ci: 0, e: "Zeus był władcą bogów mieszkających na Olimpie." }
+    ] },
+    { key: "h_piast", name: "Początki Polski", icon: "👑", bank: [
+      { q: "Który władca przyjął chrzest w 966 roku?", opts: ["Mieszko I", "Bolesław Chrobry", "Kazimierz Wielki", "Władysław Jagiełło"], ci: 0, e: "Chrzest przyjął Mieszko I — początek chrześcijańskiej Polski." },
+      { q: "W którym roku odbył się chrzest Polski?", opts: ["966", "1000", "1025", "1410"], ci: 0, e: "Chrzest Polski to rok 966." },
+      { q: "Jak nazywała się dynastia pierwszych władców Polski?", opts: ["Piastowie", "Jagiellonowie", "Wazowie", "Habsburgowie"], ci: 0, e: "Pierwsi władcy Polski to Piastowie." },
+      { q: "Kto był pierwszym koronowanym królem Polski (1025)?", opts: ["Bolesław Chrobry", "Mieszko I", "Kazimierz Wielki", "Bolesław Krzywousty"], ci: 0, e: "Pierwsza koronacja: Bolesław Chrobry, rok 1025." },
+      { q: "Które miasto uznaje się za pierwszą stolicę Polski?", opts: ["Gniezno", "Warszawa", "Kraków", "Gdańsk"], ci: 0, e: "Za pierwszą stolicę uważa się Gniezno." },
+      { q: "Czeska księżniczka, żona Mieszka I, związana z chrztem Polski:", opts: ["Dobrawa", "Jadwiga", "Bona", "Rycheza"], ci: 0, e: "Dobrawa (Dąbrówka) była żoną Mieszka I." },
+      { q: "Legendarny ubogi oracz, od którego wywodzi się nazwa dynastii:", opts: ["Piast", "Lech", "Krak", "Popiel"], ci: 0, e: "Wg legendy dynastia wzięła nazwę od Piasta Kołodzieja." },
+      { q: "Zjazd gnieźnieński z udziałem cesarza Ottona III odbył się w roku...", opts: ["1000", "966", "1025", "1385"], ci: 0, e: "Zjazd w Gnieźnie to rok 1000." },
+      { q: "Legendarny władca, który wg podania pokonał smoka wawelskiego:", opts: ["Krak", "Piast", "Lech", "Mieszko"], ci: 0, e: "Legendarny Krak — od jego imienia miał powstać Kraków." },
+      { q: "Miasto, które przez wiele wieków (od XI w.) było stolicą Polski:", opts: ["Kraków", "Poznań", "Gniezno", "Toruń"], ci: 0, e: "Przez wieki stolicą był Kraków (siedziba na Wawelu)." }
+    ] },
+    { key: "h_jag", name: "Średniowiecze i Jagiellonowie", icon: "⚔️", bank: [
+      { q: "Który król „zastał Polskę drewnianą, a zostawił murowaną”?", opts: ["Kazimierz Wielki", "Mieszko I", "Jan III Sobieski", "Bolesław Chrobry"], ci: 0, e: "To Kazimierz Wielki — rozbudował miasta i zamki." },
+      { q: "W którym roku rozegrała się bitwa pod Grunwaldem?", opts: ["1410", "966", "1385", "1791"], ci: 0, e: "Bitwa pod Grunwaldem to rok 1410." },
+      { q: "Z jakim zakonem Polska i Litwa walczyły pod Grunwaldem?", opts: ["Krzyżacy", "Tatarzy", "Szwedzi", "Turcy"], ci: 0, e: "Przeciwnikiem był Zakon krzyżacki (Krzyżacy)." },
+      { q: "Król, dowódca spod Grunwaldu, założyciel dynastii Jagiellonów:", opts: ["Władysław Jagiełło", "Kazimierz Wielki", "Zygmunt Stary", "Bolesław Chrobry"], ci: 0, e: "Władysław Jagiełło — początek Jagiellonów." },
+      { q: "Najstarszy uniwersytet w Polsce, założony w 1364 r. w Krakowie:", opts: ["Uniwersytet Jagielloński", "Uniwersytet Warszawski", "Politechnika Gdańska", "Uniwersytet Wrocławski"], ci: 0, e: "Akademia Krakowska — dziś Uniwersytet Jagielloński." },
+      { q: "Wielki polski astronom, twórca teorii heliocentrycznej:", opts: ["Mikołaj Kopernik", "Jan Heweliusz", "Galileusz", "Izaak Newton"], ci: 0, e: "Mikołaj Kopernik — „wstrzymał Słońce, ruszył Ziemię”." },
+      { q: "Unia w Krewie (1385) połączyła Polskę z...", opts: ["Litwą", "Czechami", "Węgrami", "Rosją"], ci: 0, e: "Połączyła Polskę z Litwą — początek rządów Jagiellonów." },
+      { q: "Święta królowa Polski, żona Jagiełły, patronka Uniwersytetu:", opts: ["Jadwiga", "Bona", "Dobrawa", "Rycheza"], ci: 0, e: "Święta Jadwiga Andegaweńska." },
+      { q: "Unia lubelska (1569) utworzyła państwo zwane...", opts: ["Rzeczpospolita Obojga Narodów", "Księstwo Warszawskie", "Cesarstwo Rzymskie", "Korona Czeska"], ci: 0, e: "Powstała Rzeczpospolita Obojga Narodów (Polska i Litwa)." },
+      { q: "Włoska księżniczka, żona Zygmunta Starego, która wpłynęła na kuchnię i kulturę:", opts: ["Bona Sforza", "Jadwiga", "Dobrawa", "Rycheza"], ci: 0, e: "Bona Sforza — z nią kojarzy się „włoszczyzna”." }
+    ] },
+    { key: "h_daty", name: "Znane daty i postacie", icon: "📜", bank: [
+      { q: "Konstytucja 3 maja została uchwalona w roku...", opts: ["1791", "1918", "966", "1410"], ci: 0, e: "Konstytucja 3 maja: 1791 r. — pierwsza w Europie." },
+      { q: "W którym roku Polska odzyskała niepodległość?", opts: ["1918", "1791", "1945", "1410"], ci: 0, e: "11 listopada 1918 r." },
+      { q: "Ile było rozbiorów Polski?", opts: ["3", "1", "2", "4"], ci: 0, e: "Trzy rozbiory (1772, 1793, 1795) — Polska zniknęła z mapy." },
+      { q: "Król Jan III Sobieski w 1683 r. pokonał Turków pod...", opts: ["Wiedniem", "Grunwaldem", "Warszawą", "Berlinem"], ci: 0, e: "Odsiecz wiedeńska — zwycięstwo pod Wiedniem." },
+      { q: "Marszałek związany z odzyskaniem niepodległości w 1918 r.:", opts: ["Józef Piłsudski", "Lech Wałęsa", "Tadeusz Kościuszko", "Bolesław Chrobry"], ci: 0, e: "Józef Piłsudski." },
+      { q: "Bohater Polski i USA, przywódca powstania w 1794 r.:", opts: ["Tadeusz Kościuszko", "Józef Piłsudski", "Mikołaj Kopernik", "Bolesław Chrobry"], ci: 0, e: "Tadeusz Kościuszko (insurekcja kościuszkowska, 1794)." },
+      { q: "II wojna światowa wybuchła w roku...", opts: ["1939", "1918", "1945", "1791"], ci: 0, e: "1 września 1939 r. — atak Niemiec na Polskę." },
+      { q: "Polski papież wybrany w 1978 r. to...", opts: ["Jan Paweł II", "Jan XXIII", "Franciszek", "Benedykt XVI"], ci: 0, e: "Karol Wojtyła — papież Jan Paweł II." },
+      { q: "Przywódca „Solidarności”, późniejszy prezydent Polski:", opts: ["Lech Wałęsa", "Józef Piłsudski", "Tadeusz Kościuszko", "Kazimierz Wielki"], ci: 0, e: "Lech Wałęsa — lider Solidarności, prezydent 1990–1995." },
+      { q: "Bitwa z Krzyżakami z 1410 r., jedna z największych w średniowiecznej Europie:", opts: ["pod Grunwaldem", "pod Wiedniem", "pod Cedynią", "pod Legnicą"], ci: 0, e: "Grunwald (1410) — Polska i Litwa przeciw Zakonowi krzyżackiemu." }
+    ] }
+  ];
+
+  const SUBJECTS = [
+    { key: "mat", name: "Matematyka", icon: "🧮", cats: MATH_CATS },
+    { key: "his", name: "Historia", icon: "🏰", cats: HIST_CATS }
+  ];
+
+  // adnotuj każdą kategorię przedmiotem + płaska mapa po kluczu
+  const ALL_CATS = [];
+  SUBJECTS.forEach((s) => s.cats.forEach((c) => { c.subj = s.name; c.subjKey = s.key; ALL_CATS.push(c); }));
+  function catByKey(k) { return ALL_CATS.find((c) => c.key === k); }
+
+  function escapeHtml(t) {
+    return String(t).replace(/[&<>"]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]));
+  }
+
+  // buduje pytanie z banku (przedmioty bez generatora)
+  function makeBankQuestion(cat) {
+    const bank = cat.bank;
+    let idx;
+    do { idx = Math.floor(Math.random() * bank.length); } while (bank.length > 1 && idx === cat._last);
+    cat._last = idx;
+    const qq = bank[idx];
+    const opts = shuffle(qq.opts.map((t, i) => ({ html: escapeHtml(t), correct: i === qq.ci })));
+    return { cat: cat.name, promptHTML: escapeHtml(qq.q), options: opts, explain: qq.e };
+  }
 
   // ---------- badges ----------
   const BADGES = [
@@ -746,7 +838,10 @@
     points: 0, level: 1, streak: 0, bestStreak: 0,
     solved: 0, correctCount: 0, best: 0, earned: {}
   };
-  let selected = new Set(CATS.map((c) => c.key));
+  let subjectKey = "mat";
+  function curSubject() { return SUBJECTS.find((s) => s.key === subjectKey) || SUBJECTS[0]; }
+  function curCats() { return curSubject().cats; }
+  let selected = new Set(curCats().map((c) => c.key));
   let pName = "";
   let podejscie = { key: null, count: 0, correct: 0 };
   function load() {
@@ -756,15 +851,18 @@
         const s = JSON.parse(raw);
         state.best = s.best || 0; state.earned = s.earned || {};
         pName = s.name || "";
+        if (s.subject && SUBJECTS.some((x) => x.key === s.subject)) subjectKey = s.subject;
         if (Array.isArray(s.selected) && s.selected.length) {
-          const valid = s.selected.filter((k) => CATS.some((c) => c.key === k));
-          if (valid.length) selected = new Set(valid);
+          const valid = s.selected.filter((k) => curCats().some((c) => c.key === k));
+          selected = valid.length ? new Set(valid) : new Set(curCats().map((c) => c.key));
+        } else {
+          selected = new Set(curCats().map((c) => c.key));
         }
       }
     } catch (e) {}
   }
   function save() {
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ best: state.best, earned: state.earned, selected: [...selected], name: pName })); } catch (e) {}
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ best: state.best, earned: state.earned, selected: [...selected], name: pName, subject: subjectKey })); } catch (e) {}
   }
 
   let current = null;
@@ -793,22 +891,43 @@
   const sndLvl = () => beep([523, 659, 784, 1047], 0.13, "triangle");
 
   // ---------- render ----------
-  function currentPool() {
-    const pool = CATS.filter((c) => selected.has(c.key)).map((c) => c.fn);
-    return pool.length ? pool : CATS.map((c) => c.fn);
+  function poolCats() {
+    const pool = curCats().filter((c) => selected.has(c.key));
+    return pool.length ? pool : curCats();
+  }
+
+  function renderSubjects() {
+    const box = $("subjects"); box.innerHTML = "";
+    SUBJECTS.forEach((s) => {
+      const on = s.key === subjectKey;
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "subject-tab" + (on ? " active" : "");
+      b.innerHTML = `<span class="fi">${s.icon}</span>${s.name}`;
+      b.setAttribute("aria-pressed", String(on));
+      b.addEventListener("click", () => {
+        if (subjectKey === s.key) return;
+        subjectKey = s.key;
+        selected = new Set(curCats().map((c) => c.key));
+        renderSubjects();
+        afterPick();
+      });
+      box.appendChild(b);
+    });
   }
 
   function renderChips() {
     const box = $("chips"); box.innerHTML = "";
-    const allActive = selected.size === CATS.length;
+    const cats = curCats();
+    const allActive = selected.size === cats.length;
     const allChip = document.createElement("button");
     allChip.type = "button";
     allChip.className = "fchip" + (allActive ? " active" : "");
     allChip.innerHTML = `<span class="fi">✨</span>Wszystko`;
     allChip.setAttribute("aria-pressed", String(allActive));
-    allChip.addEventListener("click", () => { selected = new Set(CATS.map((c) => c.key)); afterPick(); });
+    allChip.addEventListener("click", () => { selected = new Set(cats.map((c) => c.key)); afterPick(); });
     box.appendChild(allChip);
-    CATS.forEach((c) => {
+    cats.forEach((c) => {
       const b = document.createElement("button");
       const on = !allActive && selected.has(c.key);
       b.type = "button";
@@ -824,8 +943,8 @@
 
   function newQuestion() {
     answered = false;
-    const fn = pick(currentPool());
-    current = fn(state.level);
+    const cat = pick(poolCats());
+    current = cat.fn ? cat.fn(state.level) : makeBankQuestion(cat);
     $("chip").textContent = current.cat;
     $("prompt").innerHTML = current.promptHTML;
     const box = $("options"); box.innerHTML = "";
@@ -999,7 +1118,7 @@
   }
 
   function completeDzial() {
-    const cat = CATS.find((c) => c.key === podejscie.key);
+    const cat = catByKey(podejscie.key);
     const total = podejscie.count, correct = podejscie.correct;
     if (!total) return;
     const pct = Math.round(correct / total * 100);
@@ -1007,7 +1126,7 @@
     const status = ok ? "Zaliczony" : "Do poprawy";
     sendReport({
       name: pName || "Dziecko",
-      dzial: cat ? cat.name : "—",
+      dzial: cat ? cat.subj + " · " + cat.name : "—",
       zadania: String(total),
       poprawne: String(correct),
       celnosc: pct + "%",
@@ -1076,6 +1195,7 @@
   // ---------- boot ----------
   load();
   $("playerName").value = pName;
+  renderSubjects();
   renderChips();
   renderBadges();
   updateHUD();
