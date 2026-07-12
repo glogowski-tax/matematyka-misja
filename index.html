@@ -737,6 +737,11 @@
   // --- HISTORIA: banki pytań (poziom klasy 5-6) ---
   const HIST_CATS = [
     { key: "h_star", name: "Starożytność", icon: "🏛️", bank: [
+      { q: "Który zabytek z listy 7 cudów świata przetrwał do dziś?", opts: ["piramidy w Gizie", "wiszące ogrody Babilonu", "posąg Zeusa", "kolos rodyjski"], ci: 0, e: "Do dziś przetrwały piramidy w Gizie." },
+      { q: "Grecki poeta, twórca eposów o wojnie trojańskiej (Iliada, Odyseja):", opts: ["Homer", "Sokrates", "Herodot", "Platon"], ci: 0, e: "Eposy przypisuje się Homerowi." },
+      { q: "Surowe, wojskowe miasto-państwo starożytnej Grecji to...", opts: ["Sparta", "Ateny", "Korynt", "Milet"], ci: 0, e: "Sparta słynęła z twardego, wojskowego wychowania." },
+      { q: "Materiał do pisania wytwarzany w Egipcie z nadrzecznej rośliny:", opts: ["papirus", "pergamin", "glina", "jedwab"], ci: 0, e: "Papirus — od jego nazwy pochodzi słowo papier." },
+      { q: "Budowle, którymi Rzymianie doprowadzali wodę do miast:", opts: ["akwedukty", "piramidy", "termy", "forum"], ci: 0, e: "Akwedukty prowadziły wodę na duże odległości." },
       { q: "Nad którą rzeką rozwinęła się starożytna cywilizacja Egiptu?", opts: ["Nil", "Wisła", "Amazonka", "Tygrys"], ci: 0, e: "Egipt nazywano „darem Nilu” — rzeka użyźniała pola. Odpowiedź: Nil." },
       { q: "Jak nazywają się wielkie grobowce egipskich faraonów?", opts: ["Piramidy", "Świątynie", "Akwedukty", "Zamki"], ci: 0, e: "Faraonów chowano w piramidach (np. w Gizie)." },
       { q: "W którym greckim mieście-państwie narodziła się demokracja?", opts: ["Ateny", "Sparta", "Troja", "Kartagina"], ci: 0, e: "Demokracja („rządy ludu”) powstała w Atenach." },
@@ -749,6 +754,11 @@
       { q: "Najważniejszy bóg starożytnych Greków, władca Olimpu:", opts: ["Zeus", "Posejdon", "Hades", "Apollo"], ci: 0, e: "Zeus był władcą bogów mieszkających na Olimpie." }
     ] },
     { key: "h_piast", name: "Początki Polski", icon: "👑", bank: [
+      { q: "Nad którą rzeką leży Kraków, dawna stolica Polski?", opts: ["Wisła", "Odra", "Warta", "Bug"], ci: 0, e: "Kraków leży nad Wisłą." },
+      { q: "Godłem Polski jest...", opts: ["biały orzeł", "czarny kruk", "złoty lew", "niedźwiedź"], ci: 0, e: "Godło Polski to biały orzeł w koronie." },
+      { q: "Z jakiego plemienia wywodził się Mieszko I?", opts: ["Polan", "Wiślan", "Mazowszan", "Pomorzan"], ci: 0, e: "Mieszko I był księciem Polan." },
+      { q: "Wg legendy Lech osiedlił się tam, gdzie zobaczył gniazdo orła — powstało miasto:", opts: ["Gniezno", "Kraków", "Płock", "Wrocław"], ci: 0, e: "Legenda wiąże Gniezno (gniazdo) z białym orłem." },
+      { q: "Symbol władzy królewskiej zakładany na głowę podczas koronacji:", opts: ["korona", "berło", "tarcza", "hełm"], ci: 0, e: "Korona to symbol władzy króla." },
       { q: "Który władca przyjął chrzest w 966 roku?", opts: ["Mieszko I", "Bolesław Chrobry", "Kazimierz Wielki", "Władysław Jagiełło"], ci: 0, e: "Chrzest przyjął Mieszko I — początek chrześcijańskiej Polski." },
       { q: "W którym roku odbył się chrzest Polski?", opts: ["966", "1000", "1025", "1410"], ci: 0, e: "Chrzest Polski to rok 966." },
       { q: "Jak nazywała się dynastia pierwszych władców Polski?", opts: ["Piastowie", "Jagiellonowie", "Wazowie", "Habsburgowie"], ci: 0, e: "Pierwsi władcy Polski to Piastowie." },
@@ -761,6 +771,11 @@
       { q: "Miasto, które przez wiele wieków (od XI w.) było stolicą Polski:", opts: ["Kraków", "Poznań", "Gniezno", "Toruń"], ci: 0, e: "Przez wieki stolicą był Kraków (siedziba na Wawelu)." }
     ] },
     { key: "h_jag", name: "Średniowiecze i Jagiellonowie", icon: "⚔️", bank: [
+      { q: "W którym mieście urodził się Mikołaj Kopernik?", opts: ["Toruń", "Kraków", "Gdańsk", "Poznań"], ci: 0, e: "Kopernik urodził się w Toruniu." },
+      { q: "Bitwa pod Grunwaldem zakończyła się...", opts: ["zwycięstwem Polski i Litwy", "zwycięstwem Krzyżaków", "remisem", "ucieczką Jagiełły"], ci: 0, e: "Wygrały wojska polsko-litewskie pod wodzą Jagiełły." },
+      { q: "Dynastia panująca w Polsce po Piastach (od 1386 r.):", opts: ["Jagiellonowie", "Wazowie", "Habsburgowie", "Andegawenowie"], ci: 0, e: "Po Piastach rządzili Jagiellonowie." },
+      { q: "Rycerze w białych płaszczach z czarnym krzyżem, wrogowie Polski na północy:", opts: ["Krzyżacy", "Joannici", "Templariusze", "Husyci"], ci: 0, e: "To Krzyżacy (Zakon krzyżacki)." },
+      { q: "Słynny średniowieczny ołtarz w kościele Mariackim w Krakowie wykonał:", opts: ["Wit Stwosz", "Jan Matejko", "Leonardo da Vinci", "Michał Anioł"], ci: 0, e: "Ołtarz w Bazylice Mariackiej wykonał Wit Stwosz." },
       { q: "Który król „zastał Polskę drewnianą, a zostawił murowaną”?", opts: ["Kazimierz Wielki", "Mieszko I", "Jan III Sobieski", "Bolesław Chrobry"], ci: 0, e: "To Kazimierz Wielki — rozbudował miasta i zamki." },
       { q: "W którym roku rozegrała się bitwa pod Grunwaldem?", opts: ["1410", "966", "1385", "1791"], ci: 0, e: "Bitwa pod Grunwaldem to rok 1410." },
       { q: "Z jakim zakonem Polska i Litwa walczyły pod Grunwaldem?", opts: ["Krzyżacy", "Tatarzy", "Szwedzi", "Turcy"], ci: 0, e: "Przeciwnikiem był Zakon krzyżacki (Krzyżacy)." },
@@ -773,6 +788,11 @@
       { q: "Włoska księżniczka, żona Zygmunta Starego, która wpłynęła na kuchnię i kulturę:", opts: ["Bona Sforza", "Jadwiga", "Dobrawa", "Rycheza"], ci: 0, e: "Bona Sforza — z nią kojarzy się „włoszczyzna”." }
     ] },
     { key: "h_daty", name: "Znane daty i postacie", icon: "📜", bank: [
+      { q: "Narodowe Święto Niepodległości obchodzimy...", opts: ["11 listopada", "3 maja", "1 września", "1 maja"], ci: 0, e: "11 listopada — rocznica odzyskania niepodległości (1918)." },
+      { q: "Święto Konstytucji obchodzimy...", opts: ["3 maja", "11 listopada", "6 stycznia", "15 sierpnia"], ci: 0, e: "3 maja — rocznica Konstytucji z 1791 r." },
+      { q: "Kto namalował wielki obraz Bitwa pod Grunwaldem?", opts: ["Jan Matejko", "Stanisław Wyspiański", "Józef Chełmoński", "Jan Kochanowski"], ci: 0, e: "Obraz namalował Jan Matejko." },
+      { q: "Autor Pana Tadeusza, polski wieszcz narodowy:", opts: ["Adam Mickiewicz", "Jan Kochanowski", "Juliusz Słowacki", "Henryk Sienkiewicz"], ci: 0, e: "Pana Tadeusza napisał Adam Mickiewicz." },
+      { q: "Poeta polskiego renesansu tworzący w Czarnolesie:", opts: ["Jan Kochanowski", "Adam Mickiewicz", "Bolesław Prus", "Juliusz Słowacki"], ci: 0, e: "Jan Kochanowski (fraszki, treny) tworzył w Czarnolesie." },
       { q: "Konstytucja 3 maja została uchwalona w roku...", opts: ["1791", "1918", "966", "1410"], ci: 0, e: "Konstytucja 3 maja: 1791 r. — pierwsza w Europie." },
       { q: "W którym roku Polska odzyskała niepodległość?", opts: ["1918", "1791", "1945", "1410"], ci: 0, e: "11 listopada 1918 r." },
       { q: "Ile było rozbiorów Polski?", opts: ["3", "1", "2", "4"], ci: 0, e: "Trzy rozbiory (1772, 1793, 1795) — Polska zniknęła z mapy." },
@@ -802,11 +822,16 @@
 
   // buduje pytanie z banku (przedmioty bez generatora)
   function makeBankQuestion(cat) {
-    const bank = cat.bank;
-    let idx;
-    do { idx = Math.floor(Math.random() * bank.length); } while (bank.length > 1 && idx === cat._last);
+    const n = cat.bank.length;
+    // "talia": pokaż wszystkie pytania z działu zanim się powtórzą
+    if (!cat._deck || cat._deck.length === 0) {
+      cat._deck = shuffle(Array.from({ length: n }, (_, i) => i));
+      // unikaj powtórki tuż po przetasowaniu (to samo co ostatnie)
+      if (n > 1 && cat._deck[cat._deck.length - 1] === cat._last) cat._deck.unshift(cat._deck.pop());
+    }
+    const idx = cat._deck.pop();
     cat._last = idx;
-    const qq = bank[idx];
+    const qq = cat.bank[idx];
     const opts = shuffle(qq.opts.map((t, i) => ({ html: escapeHtml(t), correct: i === qq.ci })));
     return { cat: cat.name, promptHTML: escapeHtml(qq.q), options: opts, explain: qq.e };
   }
