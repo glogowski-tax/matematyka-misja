@@ -421,16 +421,28 @@
   .btn-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
   .btn-accent { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 
-  /* ---------- player name ---------- */
-  .player-row { display: flex; align-items: center; gap: 10px; }
-  .player-row label { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-faint); }
-  .player-row input {
-    flex: 1; max-width: 240px;
-    padding: 9px 13px; border-radius: 12px;
-    border: 1.5px solid var(--line); background: var(--surface); color: var(--ink);
-    font: inherit; font-size: 14px;
+  /* ---------- profile ---------- */
+  .profiles { display: flex; flex-wrap: wrap; gap: 8px; }
+  .profile-tile {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 8px 15px 8px 9px; border-radius: 14px;
+    border: 1.5px solid var(--line); background: var(--surface);
+    color: var(--ink); font-family: var(--font-display); font-size: 15px;
+    cursor: pointer;
+    transition: transform .1s ease, border-color .12s ease, background .12s ease;
+    -webkit-tap-highlight-color: transparent;
   }
-  .player-row input:focus { outline: none; border-color: var(--accent); }
+  .profile-tile .pav {
+    width: 30px; height: 30px; border-radius: 9px;
+    display: grid; place-items: center; font-size: 18px;
+    background: color-mix(in srgb, var(--pc, var(--accent)) 20%, var(--surface));
+  }
+  .profile-tile:hover { transform: translateY(-1px); border-color: var(--pc, var(--accent)); }
+  .profile-tile.active {
+    border-color: var(--pc, var(--accent));
+    background: color-mix(in srgb, var(--pc, var(--accent)) 12%, var(--surface));
+    box-shadow: inset 0 0 0 1px var(--pc, var(--accent));
+  }
 
   /* ---------- finish button ---------- */
   .finish-btn {
@@ -518,10 +530,8 @@
   </div>
 
   <section class="picker" aria-label="Wybór działu">
-    <div class="player-row">
-      <label for="playerName">Gracz</label>
-      <input id="playerName" type="text" maxlength="20" placeholder="wpisz imię" autocomplete="off">
-    </div>
+    <div class="picker-title">Gracz</div>
+    <div class="profiles" id="profiles"></div>
     <div class="picker-title">Przedmiot</div>
     <div class="subjects" id="subjects"></div>
     <div class="picker-title">Dział — wybierz, co ćwiczyć</div>
@@ -833,36 +843,79 @@
   };
 
   // ---------- state ----------
-  const SAVE_KEY = "matematyczna-misja-v1";
-  let state = {
-    points: 0, level: 1, streak: 0, bestStreak: 0,
-    solved: 0, correctCount: 0, best: 0, earned: {}
-  };
+  const SAVE_KEY = "matematyczna-misja-v2";
+  const OLD_KEY = "matematyczna-misja-v1";
+
+  // profile graczy — osobne postępy, odznaki i statystyki
+  const PROFILES = [
+    { id: "antek", name: "Antek", emoji: "🧒", color: "#6d3beb" },
+    { id: "tata", name: "Tata", emoji: "🧔", color: "#12b886" }
+  ];
+  function activeProfile() { return PROFILES.find((p) => p.id === activeId) || PROFILES[0]; }
+  function blankState() {
+    return { points: 0, level: 1, streak: 0, bestStreak: 0, solved: 0, correctCount: 0, best: 0, earned: {}, selected: null, subject: "mat" };
+  }
+
+  let store = {};                 // id profilu -> zapisany stan
+  let activeId = PROFILES[0].id;
+
+  let state = { points: 0, level: 1, streak: 0, bestStreak: 0, solved: 0, correctCount: 0, best: 0, earned: {} };
   let subjectKey = "mat";
   function curSubject() { return SUBJECTS.find((s) => s.key === subjectKey) || SUBJECTS[0]; }
   function curCats() { return curSubject().cats; }
   let selected = new Set(curCats().map((c) => c.key));
-  let pName = "";
   let podejscie = { key: null, count: 0, correct: 0 };
+
+  function collectToStore() {
+    store[activeId] = {
+      points: state.points, level: state.level, streak: state.streak, bestStreak: state.bestStreak,
+      solved: state.solved, correctCount: state.correctCount, best: state.best, earned: state.earned,
+      selected: [...selected], subject: subjectKey
+    };
+  }
+  function applyFromStore(id) {
+    const s = store[id] || blankState();
+    state.points = s.points || 0; state.level = s.level || 1; state.streak = s.streak || 0; state.bestStreak = s.bestStreak || 0;
+    state.solved = s.solved || 0; state.correctCount = s.correctCount || 0; state.best = s.best || 0; state.earned = s.earned || {};
+    subjectKey = (s.subject && SUBJECTS.some((x) => x.key === s.subject)) ? s.subject : "mat";
+    const cats = curCats();
+    if (Array.isArray(s.selected) && s.selected.length) {
+      const valid = s.selected.filter((k) => cats.some((c) => c.key === k));
+      selected = valid.length ? new Set(valid) : new Set(cats.map((c) => c.key));
+    } else {
+      selected = new Set(cats.map((c) => c.key));
+    }
+  }
   function load() {
     try {
       const raw = localStorage.getItem(SAVE_KEY);
       if (raw) {
-        const s = JSON.parse(raw);
-        state.best = s.best || 0; state.earned = s.earned || {};
-        pName = s.name || "";
-        if (s.subject && SUBJECTS.some((x) => x.key === s.subject)) subjectKey = s.subject;
-        if (Array.isArray(s.selected) && s.selected.length) {
-          const valid = s.selected.filter((k) => curCats().some((c) => c.key === k));
-          selected = valid.length ? new Set(valid) : new Set(curCats().map((c) => c.key));
-        } else {
-          selected = new Set(curCats().map((c) => c.key));
+        const d = JSON.parse(raw);
+        store = d.profiles || {};
+        activeId = (d.active && PROFILES.some((p) => p.id === d.active)) ? d.active : PROFILES[0].id;
+      } else {
+        // migracja starych postępów (v1) do profilu Antek
+        const old = localStorage.getItem(OLD_KEY);
+        if (old) {
+          const s = JSON.parse(old);
+          store["antek"] = Object.assign(blankState(), { best: s.best || 0, earned: s.earned || {}, selected: s.selected || null, subject: s.subject || "mat" });
         }
+        activeId = PROFILES[0].id;
       }
-    } catch (e) {}
+    } catch (e) { store = {}; activeId = PROFILES[0].id; }
+    applyFromStore(activeId);
   }
   function save() {
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ best: state.best, earned: state.earned, selected: [...selected], name: pName, subject: subjectKey })); } catch (e) {}
+    try { collectToStore(); localStorage.setItem(SAVE_KEY, JSON.stringify({ active: activeId, profiles: store })); } catch (e) {}
+  }
+  function switchProfile(id) {
+    if (id === activeId) return;
+    collectToStore();
+    activeId = id;
+    applyFromStore(id);
+    save();
+    renderProfiles(); renderSubjects(); renderChips(); renderBadges(); updateHUD();
+    resetPodejscie(); newQuestion();
   }
 
   let current = null;
@@ -894,6 +947,21 @@
   function poolCats() {
     const pool = curCats().filter((c) => selected.has(c.key));
     return pool.length ? pool : curCats();
+  }
+
+  function renderProfiles() {
+    const box = $("profiles"); box.innerHTML = "";
+    PROFILES.forEach((p) => {
+      const on = p.id === activeId;
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "profile-tile" + (on ? " active" : "");
+      b.style.setProperty("--pc", p.color);
+      b.innerHTML = `<span class="pav">${p.emoji}</span><span class="pnm">${p.name}</span>`;
+      b.setAttribute("aria-pressed", String(on));
+      b.addEventListener("click", () => switchProfile(p.id));
+      box.appendChild(b);
+    });
   }
 
   function renderSubjects() {
@@ -1125,7 +1193,7 @@
     const ok = pct >= REPORT.passPct;
     const status = ok ? "Zaliczony" : "Do poprawy";
     sendReport({
-      name: pName || "Dziecko",
+      name: activeProfile().name,
       dzial: cat ? cat.subj + " · " + cat.name : "—",
       zadania: String(total),
       poprawne: String(correct),
@@ -1149,7 +1217,6 @@
   $("finishBtn").addEventListener("click", () => { if (podejscie.count > 0) completeDzial(); });
   $("doneAgain").addEventListener("click", () => { $("doneModal").classList.remove("show"); newQuestion(); });
   $("doneOther").addEventListener("click", () => { $("doneModal").classList.remove("show"); });
-  $("playerName").addEventListener("input", (e) => { pName = e.target.value; save(); });
 
   $("soundBtn").addEventListener("click", (e) => {
     soundOn = !soundOn;
@@ -1176,7 +1243,7 @@
   $("resetConfirm").addEventListener("click", () => {
     state.points = 0; state.level = 1; state.streak = 0; state.bestStreak = 0;
     state.solved = 0; state.correctCount = 0;
-    closeReset(); updateHUD(); newQuestion();
+    closeReset(); updateHUD(); save(); newQuestion();
     toast("🔄", "Zaczynamy od nowa!");
   });
 
@@ -1194,7 +1261,7 @@
 
   // ---------- boot ----------
   load();
-  $("playerName").value = pName;
+  renderProfiles();
   renderSubjects();
   renderChips();
   renderBadges();
