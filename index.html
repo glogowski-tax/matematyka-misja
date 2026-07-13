@@ -1266,8 +1266,10 @@
     const total = podejscie.count, correct = podejscie.correct;
     if (!total) return;
     const pct = Math.round(correct / total * 100);
-    const ok = pct >= REPORT.passPct;
-    const status = ok ? "Zaliczony" : "Do poprawy";
+    const full = total >= REPORT.target;
+    // zaliczenie wymaga PEŁNEJ porcji zadań — bez skrótu po jednym pytaniu
+    const ok = full && pct >= REPORT.passPct;
+    const status = ok ? "Zaliczony" : (full ? "Do poprawy" : "Niepełny (" + total + "/" + REPORT.target + ")");
     sendReport({
       name: activeProfile().name,
       dzial: cat ? cat.subj + " · " + cat.name : "—",
@@ -1277,11 +1279,12 @@
       poziom: String(state.level),
       status: status
     });
-    $("doneTitle").textContent = ok ? "Dział ukończony! 🎉" : "Dobra próba! 💪";
+    $("doneTitle").textContent = ok ? "Dział ukończony! 🎉" : (full ? "Dobra próba! 💪" : "Dział przerwany 🚧");
     $("doneBody").innerHTML =
       `<div class="done-dzial">${cat ? cat.name : ""}</div>` +
       `<div class="done-stats"><span><b>${correct}</b>/${total} dobrze</span><span><b>${pct}%</b> celności</span><span>Poziom <b>${state.level}</b></span></div>` +
       `<div class="done-status ${ok ? "ok" : "no"}">${status}</div>` +
+      (full ? "" : `<div class="done-note">Aby zaliczyć dział, rozwiąż pełne ${REPORT.target} zadań.</div>`) +
       `<div class="done-note">📤 Wynik wysłany rodzicowi</div>`;
     $("doneModal").classList.add("show");
     if (ok) confetti();
