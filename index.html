@@ -261,6 +261,7 @@
   .prompt .q-set { display: block; font-size: .72em; line-height: 1.35; word-spacing: .55em; }
   .q-hole { display: inline-block; min-width: 1.15em; padding: 0 .15em; border: .07em dashed currentColor; border-radius: .25em; line-height: 1.1; text-align: center; opacity: .8; }
   .opt-text { font-family: var(--font-body); font-weight: 600; font-size: .8em; line-height: 1.25; }
+  .feedback .fb-text .kol { display: block; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 15px; line-height: 1.3; white-space: pre; margin: 6px 0; color: inherit; }
 
   .options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   @media (max-width: 460px) { .options { grid-template-columns: 1fr; } }
@@ -739,6 +740,7 @@
   const fmtNum = (v) => String(v).replace(/\B(?=(\d{3})+(?!\d))/g, " "); // 1 000 000
   // liczba dziesiętna zapisana jako m / 10^k → tekst po polsku, np. fmtDec(37, 1) = "3,7"
   const fmtDec = (m, k) => {
+    if (m < 0) return "−" + fmtDec(-m, k);
     let s = String(m);
     if (k <= 0) return fmtNum(s + "0".repeat(-k));
     s = s.padStart(k + 1, "0");
@@ -872,10 +874,10 @@
         r.options = makeOptions(powHTML(10, n), shuffle(wrongs), (v) => v);
         r.explain = `Liczba ${fmtNum(ans)} to jedynka i ${n} zer, więc to <b>${powHTML(10, n)}</b>.`;
       } else if (form === "razy") { // liczba 10 razy większa od 10⁴
-        const n = rint(2, 9), f = pick([1, 1, 2, 3]), wieksza = Math.random() < 0.5;
+        const f = pick([1, 1, 2, 3]), wieksza = Math.random() < 0.5, n = wieksza ? rint(2, 9) : rint(f + 1, 9);
         const ans = wieksza ? n + f : n - f;
         const fTxt = f === 1 ? "10" : f === 2 ? "100" : "1000";
-        const wrongs = uniq([powHTML(10, wieksza ? n - f : n + f), powHTML(10, n * ipow(10, f)), powHTML(10, n), powHTML(10, ans + 1), powHTML(10, ans - 1)]).filter((v) => v !== powHTML(10, ans));
+        const wrongs = uniq([wieksza ? n - f : n + f, n * ipow(10, f), n, ans + 1, ans - 1].filter((e) => e >= 0 && e !== ans).map((e) => powHTML(10, e)));
         r.promptHTML = `${story(`Zapisz w postaci potęgi liczby 10 liczbę ${fTxt} razy ${wieksza ? "większą" : "mniejszą"} od`)}${powHTML(10, n)}`;
         r.options = makeOptions(powHTML(10, ans), shuffle(wrongs), (v) => v);
         r.explain = `${fTxt} = ${powHTML(10, f)}. ${wieksza ? "Mnożenie" : "Dzielenie"} przez ${fTxt} ${wieksza ? "dopisuje" : "zabiera"} ${f} ${f === 1 ? "zero" : "zera"}: ${powHTML(10, n)} ${wieksza ? "·" : ":"} ${fTxt} = <b>${powHTML(10, ans)}</b>.`;
@@ -1023,11 +1025,228 @@
     return r;
   }
 
+  // ---------- Działania pisemne na ułamkach dziesiętnych (Matematyka z plusem 6, GWO, s. 21–23) ----------
+  // Liczba dziesiętna = { m, k } o wartości m / 10^k. Wszystko na liczbach całkowitych — zero błędów zmiennoprzecinkowych.
+  const D = (m, k) => { m = Math.round(m); k = k || 0; if (k < 0) { m *= ipow(10, -k); k = 0; } while (k > 0 && m % 10 === 0) { m /= 10; k--; } return { m, k }; };
+  const Dtxt = (x) => fmtDec(x.m, x.k);
+  const Dalign = (a, b) => { const k = Math.max(a.k, b.k); return [a.m * ipow(10, k - a.k), b.m * ipow(10, k - b.k), k]; };
+  const Dadd = (a, b) => { const [x, y, k] = Dalign(a, b); return D(x + y, k); };
+  const Dsub = (a, b) => { const [x, y, k] = Dalign(a, b); return D(x - y, k); };
+  const Dmul = (a, b) => D(a.m * b.m, a.k + b.k);
+  const Dcmp = (a, b) => { const [x, y] = Dalign(a, b); return x < y ? -1 : x > y ? 1 : 0; };
+  const Dshift = (x, s) => D(x.m, x.k - s); // · 10^s
+  const Drand = (k, lo, hi) => D(rint(lo * ipow(10, k), hi * ipow(10, k)), k);
+  const DrandDec = (k, lo, hi) => { let x; do { x = Drand(k, lo, hi); } while (x.k < 1 || x.m === 0); return x; }; // z co najmniej 1 cyfrą po przecinku
+  const padDec = (x, K) => { // zapis z dokładnie K miejscami (37,20)
+    const s = String(x.m * ipow(10, K - x.k)).padStart(K + 1, "0");
+    return K ? `${s.slice(0, -K)},${s.slice(-K)}` : s;
+  };
+  const zl = (x) => `${padDec(x, 2).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} zł`;
+  const kolumna = (rows, sign, res) => { // dodawanie/odejmowanie pisemne: przecinek pod przecinkiem
+    const K = Math.max(...rows.map((x) => x.k), res.k);
+    const txt = rows.map((x) => padDec(x, K)), rt = padDec(res, K);
+    const w = Math.max(...txt.map((t) => t.length), rt.length) + 2;
+    const lines = txt.map((t, i) => (i === txt.length - 1 ? sign + " " : "  ") + t.padStart(w - 2));
+    return `<span class="kol">${lines.join("\n")}\n${"—".repeat(w)}\n  ${rt.padStart(w - 2)}</span>`;
+  };
+  const czasTxt = (min) => min >= 60 ? `${Math.floor(min / 60)} h ${min % 60 ? (min % 60) + " min" : ""}`.trim() : `${min} min`;
+  const optTxt = (v) => `<span class="opt-text">${v}</span>`;
+  const wrongsDec = (a, b, res, op) => { // typowe błędy przy dodawaniu/odejmowaniu
+    const K = Math.max(a.k, b.k), c = [];
+    if (a.k !== b.k) c.push(D(op === "+" ? a.m + b.m : a.m - b.m, K)); // cyfry wyrównane do prawej zamiast przecinek pod przecinkiem
+    c.push(D(res.m, res.k + 1), D(res.m, Math.max(0, res.k - 1)));
+    c.push(Dadd(res, D(1, K)), Dsub(res, D(1, K)), Dadd(res, D(1, 0)), Dsub(res, D(1, 0)), Dadd(res, D(1, 1)), Dsub(res, D(1, 1)));
+    c.push(op === "+" ? Dsub(a, b) : Dadd(a, b));
+    return uniq(c.filter((x) => x.m > 0).map(Dtxt)).filter((t) => t !== Dtxt(res));
+  };
+  const wrongsNear = (res) => uniq([D(res.m, res.k + 1), D(res.m, Math.max(0, res.k - 1)), Dadd(res, D(1, res.k)), Dsub(res, D(1, res.k)), Dadd(res, D(1, 1)), Dsub(res, D(1, 1)), Dadd(res, D(1, 0))].filter((x) => x.m > 0).map(Dtxt)).filter((t) => t !== Dtxt(res));
+
+  function genDziesietne(d) {
+    const kinds = ["dodaj", "dodaj", "odejmij", "odejmij", "mnoz", "mnoz", "dziel", "tresc", "tresc"];
+    if (d >= 2) kinds.push("trzy", "potega", "srednia", "dziel", "tresc");
+    if (d >= 3) kinds.push("srednia", "mnoz", "trzy");
+    const kind = pick(kinds);
+    const r = { cat: "Ułamki dziesiętne" };
+    const K = d < 2 ? 2 : 3;
+
+    if (kind === "dodaj") { // zad. 1a: 4,72 + 5,28, 18,3 + 3,81
+      let a = DrandDec(rint(1, K), 0, d < 2 ? 20 : 50), b = DrandDec(rint(1, K), 0, d < 2 ? 10 : 30);
+      if (Math.random() < 0.2) a = D(rint(2, 60), 0); // liczba naturalna + ułamek: 44 + 4,4
+      const res = Dadd(a, b);
+      r.promptHTML = `${lead("Oblicz")}${Dtxt(a)} + ${Dtxt(b)}`;
+      r.options = makeOptions(Dtxt(res), shuffle(wrongsDec(a, b, res, "+")), (v) => v);
+      r.explain = `Przecinek pod przecinkiem, jedności pod jednościami: ${kolumna([a, b], "+", res)}${Dtxt(a)} + ${Dtxt(b)} = <b>${Dtxt(res)}</b>.`;
+      return r;
+    }
+
+    if (kind === "odejmij") { // zad. 1b: 14,3 − 3,14, 0,925 − 0,84, 2,33 − 0,567
+      let a = DrandDec(rint(1, K), 0, d < 2 ? 20 : 50), b = DrandDec(rint(1, K), 0, d < 2 ? 10 : 30);
+      if (Math.random() < 0.2) a = D(rint(2, 60), 0);
+      if (Dcmp(a, b) < 0) [a, b] = [b, a];
+      if (Dcmp(a, b) === 0) a = Dadd(a, D(rint(1, 9), 1));
+      const res = Dsub(a, b);
+      r.promptHTML = `${lead("Oblicz")}${Dtxt(a)} − ${Dtxt(b)}`;
+      r.options = makeOptions(Dtxt(res), shuffle(wrongsDec(a, b, res, "−")), (v) => v);
+      r.explain = `Przecinek pod przecinkiem${a.k !== b.k ? ", brakujące miejsca dopisujemy zerami" : ""}: ${kolumna([a, b], "−", res)}${Dtxt(a)} − ${Dtxt(b)} = <b>${Dtxt(res)}</b>.`;
+      return r;
+    }
+
+    if (kind === "trzy") { // zad. 1c: 44 − 4,4 + 0,44, 6,4 − 5,48 + 7,03
+      const form = pick(["+-", "-+", "++"]);
+      let a = Math.random() < 0.3 ? D(rint(5, 50), 0) : DrandDec(rint(1, 2), 1, 30), b = DrandDec(rint(1, 2), 0, 10), c = DrandDec(rint(1, 2), 0, 10);
+      if (form !== "++" && Dcmp(a, b) <= 0) a = Dadd(b, DrandDec(1, 1, 10));
+      const s1 = form === "++" || form === "-+" ? (form === "++" ? Dadd(a, b) : Dsub(a, b)) : Dadd(a, b);
+      const res = form === "++" ? Dadd(s1, c) : form === "-+" ? Dadd(s1, c) : Dsub(s1, c);
+      if (res.m < 0) return genDziesietne(d);
+      const o1 = form === "-+" ? "−" : "+", o2 = form === "+-" ? "−" : "+";
+      const t = `${Dtxt(a)} ${o1} ${Dtxt(b)} ${o2} ${Dtxt(c)}`;
+      r.promptHTML = `${lead("Oblicz po kolei")}${t}`;
+      r.options = makeOptions(Dtxt(res), shuffle(wrongsNear(res).concat([Dtxt(Dadd(Dadd(a, b), c))])).filter((v) => v !== Dtxt(res)), (v) => v);
+      r.explain = `Działania wykonujemy od lewej: ${Dtxt(a)} ${o1} ${Dtxt(b)} = ${Dtxt(s1)}, potem ${Dtxt(s1)} ${o2} ${Dtxt(c)} = <b>${Dtxt(res)}</b>.`;
+      return r;
+    }
+
+    if (kind === "mnoz") { // zad. 3a-d: 3,4 · 0,13, 0,865 · 0,4, 2,08 · 3,05
+      const ka = d < 2 ? 1 : rint(1, 3), kb = d < 2 ? pick([1, 2]) : rint(1, 2);
+      const a = DrandDec(ka, 0, ka === 3 ? 1 : 10), b = DrandDec(kb, 0, kb === 2 ? 4 : 10);
+      const prod = a.m * b.m, kp = a.k + b.k, res = D(prod, kp);
+      const wrongs = uniq([D(prod, Math.max(a.k, b.k)), D(prod, kp + 1), D(prod, kp - 1), D(prod, a.k), D(prod, b.k), Dadd(a, b)].filter((x) => x.m > 0).map(Dtxt)).filter((t) => t !== Dtxt(res));
+      r.promptHTML = `${lead("Oblicz")}${Dtxt(a)} · ${Dtxt(b)}`;
+      r.options = makeOptions(Dtxt(res), shuffle(wrongs), (v) => v);
+      r.explain = `Mnożymy jak liczby naturalne: ${a.m} · ${b.m} = ${fmtNum(prod)}. W czynnikach jest łącznie ${a.k} + ${b.k} = ${kp} ${kp === 1 ? "cyfra" : kp <= 4 ? "cyfry" : "cyfr"} po przecinku, więc od prawej oddzielamy ${cyfry(kp)}: ${padDec({ m: prod, k: kp }, kp) !== Dtxt(res) ? padDec({ m: prod, k: kp }, kp) + " = " : ""}<b>${Dtxt(res)}</b>.`;
+      return r;
+    }
+
+    if (kind === "potega") { // zad. 3e-h: 4,3², 0,27², 0,9³, 2,1³
+      const n = pick([2, 2, 3]);
+      const a = n === 2 ? DrandDec(pick([1, 2]), 0, 10) : DrandDec(1, 0, 3);
+      const prod = ipow(a.m, n), kp = a.k * n, res = D(prod, kp);
+      const wrongs = uniq([D(prod, a.k), D(prod, kp + 1), D(prod, kp - 1), Dmul(a, D(n, 0)), D(a.m * n, a.k)].filter((x) => x.m > 0).map(Dtxt)).filter((t) => t !== Dtxt(res));
+      r.promptHTML = `${lead("Oblicz")}${powHTML(Dtxt(a), n)}`;
+      r.options = makeOptions(Dtxt(res), shuffle(wrongs), (v) => v);
+      r.explain = `${powHTML(Dtxt(a), n)} = ${prodHTML(Dtxt(a), n)}. Liczymy ${prodHTML(a.m, n)} = ${fmtNum(prod)} i oddzielamy przecinkiem ${cyfry(kp)} (po ${a.k} z każdego czynnika): <b>${Dtxt(res)}</b>.`;
+      return r;
+    }
+
+    if (kind === "dziel") { // zad. 3i-l: 5,64 : 0,8, 0,217 : 3,5, 0,9 : 0,036
+      const b = d < 2 ? DrandDec(1, 0, 10) : DrandDec(rint(1, 3), 0, 10), q = DrandDec(d < 2 ? 1 : rint(1, 2), 0, 10);
+      if (b.m > 99 || q.m > 99) return genDziesietne(d);
+      const a = Dmul(q, b);
+      const a2 = Dshift(a, b.k), b2 = Dshift(b, b.k); // po pomnożeniu przez 10^k dzielnik jest naturalny
+      const wrongs = uniq([Dshift(q, 1), Dshift(q, -1), Dshift(q, 2), D(q.m, q.k + b.k), D(q.m, Math.max(0, q.k - b.k)), Dmul(a, b)].filter((x) => x.m > 0).map(Dtxt)).filter((t) => t !== Dtxt(q));
+      r.promptHTML = `${lead("Oblicz")}${Dtxt(a)} : ${Dtxt(b)}`;
+      r.options = makeOptions(Dtxt(q), shuffle(wrongs), (v) => v);
+      r.explain = `Mnożymy dzielną i dzielnik przez ${fmtNum(pow10(b.k))}, żeby dzielnik był liczbą naturalną: ${Dtxt(a)} : ${Dtxt(b)} = ${Dtxt(a2)} : ${Dtxt(b2)} = <b>${Dtxt(q)}</b>. Sprawdzenie: ${Dtxt(b2)} · ${Dtxt(q)} = ${Dtxt(a2)}.`;
+      return r;
+    }
+
+    if (kind === "srednia") { // zad. 4: średnia arytmetyczna
+      const n = d < 3 ? pick([2, 2, 3]) : pick([2, 3, 3, 4]);
+      const M = DrandDec(2, 1, 10);
+      const es = [];
+      for (let i = 0; i < n - 1; i++) es.push(D(rint(-250, 250), 2));
+      es.push(D(-es.reduce((s, e) => s + e.m * ipow(10, 2 - e.k), 0), 2));
+      const xs = es.map((e) => Dadd(M, e));
+      if (xs.some((x) => x.m <= 0) || uniq(xs.map(Dtxt)).length < n) return genDziesietne(d);
+      const S = xs.reduce((s, x) => Dadd(s, x), D(0, 0));
+      const wrongs = uniq([S, Dadd(M, D(1, 1)), Dsub(M, D(1, 1)), Dadd(M, D(1, 2)), Dsub(M, D(1, 2)), n !== 2 ? D(S.m * 5, S.k + 1) : Dshift(M, -1)].filter((x) => x.m > 0).map(Dtxt)).filter((t) => t !== Dtxt(M));
+      const list = xs.map(Dtxt);
+      r.promptHTML = `${lead("Oblicz średnią arytmetyczną liczb")}<span class="q-set">${list.join(" ")}</span>`;
+      r.options = makeOptions(Dtxt(M), shuffle(wrongs), (v) => v);
+      r.explain = `Średnia to suma podzielona przez liczbę składników: (${list.join(" + ")}) : ${n} = ${Dtxt(S)} : ${n} = <b>${Dtxt(M)}</b>.`;
+      return r;
+    }
+
+    // "tresc" — zad. 2, 5, 6, 7, 8 i superzagadka
+    const tasks = [];
+    tasks.push(() => { // zad. 5a: gruszki + ananas, reszta
+      for (let i = 0; i < 30; i++) {
+        const X = pick([D(5, 1), D(75, 2), D(15, 1), D(25, 1), D(2, 0)]), Pc = pick([D(64, 1), D(58, 1), D(72, 1), D(49, 1), D(8, 0), D(52, 1)]);
+        const gr = Dmul(X, Pc), A = D(rint(250, 850), 2), Dane = D(pick([20, 25, 50]), 0);
+        const R = Dsub(Dsub(Dane, gr), A);
+        if (gr.k > 2 || R.m <= 0) continue;
+        return { t: `Leszek kupił ${Dtxt(X)} kg gruszek po ${zl(Pc)} za 1 kg i ananasa. Dał kasjerce ${Dtxt(Dane)} zł i otrzymał ${zl(R)} reszty. Ile kosztował ananas?`, v: zl(A), w: [zl(Dsub(Dane, R)), zl(Dsub(Dane, gr)), zl(gr), zl(Dadd(A, D(1, 0))), zl(Dsub(A, D(5, 1)))], e: `Zapłacił ${Dtxt(Dane)} − ${Dtxt(R)} = ${Dtxt(Dsub(Dane, R))} zł. Gruszki kosztowały ${Dtxt(X)} · ${Dtxt(Pc)} = ${Dtxt(gr)} zł. Ananas: ${Dtxt(Dsub(Dane, R))} − ${Dtxt(gr)} = <b>${zl(A)}</b>` };
+      }
+      return null;
+    });
+    tasks.push(() => { // zad. 5b: które jabłka droższe za kg
+      for (let i = 0; i < 30; i++) {
+        const u1 = DrandDec(pick([1, 2]), 2, 6), u2 = Math.random() < 0.25 ? u1 : DrandDec(pick([1, 2]), 2, 6);
+        const w1 = pick([D(25, 1), D(2, 0), D(15, 1), D(4, 0), D(5, 1), D(3, 0)]), w2 = pick([D(32, 1), D(2, 0), D(125, 2), D(5, 0), D(15, 1), D(4, 0)]);
+        const t1 = Dmul(u1, w1), t2 = Dmul(u2, w2);
+        if (t1.k > 2 || t2.k > 2) continue;
+        const c = Dcmp(u1, u2), ans = c > 0 ? "jabłka Olka" : c < 0 ? "jabłka Izy" : "obie ceny były takie same";
+        return { t: `Olek zapłacił ${zl(t1)} za ${Dtxt(w1)} kg jabłek. Iza kupiła ${Dtxt(w2)} kg innych jabłek i zapłaciła ${zl(t2)}. Które jabłka miały wyższą cenę za 1 kg?`, v: ans, w: ["jabłka Olka", "jabłka Izy", "obie ceny były takie same"], txt: true, e: `Cena za 1 kg: Olek ${Dtxt(t1)} : ${Dtxt(w1)} = ${zl(u1)}, Iza ${Dtxt(t2)} : ${Dtxt(w2)} = ${zl(u2)}. Odpowiedź: <b>${ans}</b>` };
+      }
+      return null;
+    });
+    tasks.push(() => { // zad. 6: trzy dystrybutory, cena litra oleju napędowego
+      for (let i = 0; i < 30; i++) {
+        const us = shuffle([D(rint(520, 610), 2), D(rint(520, 610), 2), D(rint(520, 610), 2)]).sort((x, y) => Dcmp(x, y));
+        if (uniq(us.map(Dtxt)).length < 3) continue;
+        const Ls = shuffle([D(30, 0), D(205, 1), D(45, 0), D(25, 0), D(12, 0), D(155, 1)]).slice(0, 3);
+        const tot = us.map((u, j) => Dmul(u, Ls[j]));
+        if (tot.some((t) => t.k > 2)) continue;
+        const order = shuffle([0, 1, 2]);
+        const opis = order.map((j) => `${Dtxt(Ls[j])} l za ${zl(tot[j])}`).join(", ");
+        return { t: `Z trzech dystrybutorów zatankowano: ${opis}. Najdroższa jest benzyna 98, najtańsza benzyna 95, a trzecie paliwo to olej napędowy. Ile kosztuje litr oleju napędowego?`, v: zl(us[1]), w: [zl(us[0]), zl(us[2]), zl(Dadd(us[1], D(1, 1))), zl(Dsub(us[1], D(1, 1)))], e: `Cena litra = kwota : liczba litrów: ${tot.map((t, j) => `${Dtxt(t)} : ${Dtxt(Ls[j])} = ${zl(us[j])}`).join(", ")}. Najtańsza to 95, najdroższa 98, więc olej napędowy kosztuje <b>${zl(us[1])}</b>` };
+      }
+      return null;
+    });
+    tasks.push(() => { // zad. 8a: woda w produktach
+      const prod = pick([["pomidorach", "pomidorów", D(93, 2)], ["ogórkach", "ogórków", D(95, 2)], ["cebuli", "cebuli", D(86, 2)], ["orzechach laskowych", "orzechów laskowych", D(5, 2)], ["jajkach na twardo", "jajek na twardo", D(72, 2)]]);
+      const W = pick([D(2, 0), D(3, 0), D(5, 1), D(15, 1), D(25, 1), D(4, 0), D(2, 1)]);
+      const ans = Dmul(prod[2], W);
+      return { t: `W ${prod[0]} woda stanowi ${Dtxt(prod[2])} masy. Ile kilogramów wody jest w ${Dtxt(W)} kg ${prod[1]}?`, v: `${Dtxt(ans)} kg`, w: uniq([Dsub(W, prod[2]), Dshift(ans, 1), Dshift(ans, -1), Dadd(ans, D(1, 1)), Dsub(ans, D(1, 2))].filter((x) => x.m > 0).map((x) => `${Dtxt(x)} kg`)), e: `${Dtxt(prod[2])} masy z ${Dtxt(W)} kg to ${Dtxt(prod[2])} · ${Dtxt(W)} = <b>${Dtxt(ans)} kg</b>` };
+    });
+    tasks.push(() => { // zad. 2a: skansen — która droga dłuższa
+      const segs = [D(rint(30, 150), 2), D(rint(30, 150), 2), D(rint(30, 150), 2), D(rint(30, 150), 2)];
+      const s1 = Dadd(segs[0], segs[1]), s2 = Dadd(segs[2], segs[3]);
+      const c = Dcmp(s1, s2), ans = c > 0 ? "obok warsztatu bednarza" : c < 0 ? "obok warsztatu garncarza" : "obie drogi są równe";
+      return { t: `Z kuźni do wiatraka można iść obok warsztatu bednarza (odcinki ${Dtxt(segs[0])} km i ${Dtxt(segs[1])} km) albo obok warsztatu garncarza (odcinki ${Dtxt(segs[2])} km i ${Dtxt(segs[3])} km). Która droga jest dłuższa?`, v: ans, w: ["obok warsztatu bednarza", "obok warsztatu garncarza", "obie drogi są równe"], txt: true, e: `Obok bednarza: ${Dtxt(segs[0])} + ${Dtxt(segs[1])} = ${Dtxt(s1)} km. Obok garncarza: ${Dtxt(segs[2])} + ${Dtxt(segs[3])} = ${Dtxt(s2)} km. Dłuższa: <b>${ans}</b>` };
+    });
+    if (d >= 2) tasks.push(() => { // zad. 2b: czas zwiedzania
+      const parts = [D(rint(3, 12) * 2, 1), D(rint(3, 12) * 2, 1), D(rint(3, 12) * 2, 1)];
+      const L = parts.reduce((s, x) => Dadd(s, x), D(0, 0)), k = rint(3, 5);
+      const mDroga = L.m * 15 / ipow(10, L.k), mObiekty = 10 * k, total = mDroga + mObiekty;
+      return { t: `Trasa po skansenie ma odcinki ${parts.map(Dtxt).join(" km, ")} km. Przejście 1 km zajmuje kwadrans, a każdy z ${k} obiektów oglądasz przez 10 minut. Ile czasu potrzeba na zwiedzanie?`, v: czasTxt(total), w: uniq([czasTxt(mDroga), czasTxt(total + 10), czasTxt(total - 15), czasTxt(mObiekty + Math.round(L.m / ipow(10, L.k)) * 15)]), txt: true, e: `Trasa: ${parts.map(Dtxt).join(" + ")} = ${Dtxt(L)} km, czyli ${Dtxt(L)} · 15 min = ${mDroga} min. Obiekty: ${k} · 10 = ${mObiekty} min. Razem ${mDroga} + ${mObiekty} = ${total} min = <b>${czasTxt(total)}</b>` };
+    });
+    if (d >= 2) tasks.push(() => { // zad. 8b: gdzie więcej wody
+      const A = pick([["pomidorze ważącym", D(93, 2)], ["ogórku ważącym", D(95, 2)], ["jajku ważącym", D(72, 2)]]), B = pick([["orzechów laskowych", D(5, 2)], ["cebuli", D(86, 2)]]);
+      const wa = pick([D(2, 1), D(3, 1), D(15, 1), D(5, 1)]), wb = pick([D(3, 0), D(2, 0), D(5, 1), D(15, 1)]);
+      const va = Dmul(A[1], wa), vb = Dmul(B[1], wb), c = Dcmp(va, vb);
+      const ans = c > 0 ? `w ${A[0].split(" ")[0]}` : c < 0 ? `w ${B[0]}` : "tyle samo";
+      return { t: `Woda stanowi ${Dtxt(A[1])} masy ${A[0].split(" ")[0] === "pomidorze" ? "pomidora" : A[0].split(" ")[0] === "ogórku" ? "ogórka" : "jajka"} i ${Dtxt(B[1])} masy ${B[0]}. Czy więcej wody jest w ${A[0]} ${Dtxt(wa)} kg, czy w ${Dtxt(wb)} kg ${B[0]}?`, v: ans, w: [`w ${A[0].split(" ")[0]}`, `w ${B[0]}`, "tyle samo"], txt: true, e: `${Dtxt(A[1])} · ${Dtxt(wa)} = ${Dtxt(va)} kg wody, a ${Dtxt(B[1])} · ${Dtxt(wb)} = ${Dtxt(vb)} kg wody. Więcej: <b>${ans}</b>` };
+    });
+    if (d >= 3) tasks.push(() => { // zad. 7: dojazdy do pracy
+      for (let i = 0; i < 40; i++) {
+        const s = pick([10, 12, 15, 20, 25]), spal = pick([D(5, 0), D(6, 0), D(65, 1), D(7, 0), D(75, 1), D(8, 0)]), cena = pick([D(56, 1), D(58, 1), D(61, 1), D(625, 2), D(6, 0)]), dni = pick([20, 21, 22]);
+        const km = 2 * s * dni, litry = Dmul(spal, D(km, 2)), koszt = Dmul(litry, cena);
+        if (koszt.k > 2) continue;
+        return { t: `Pan Rafał pracuje ${s} km od domu i dojeżdża samochodem, który spala ${Dtxt(spal)} litra paliwa na 100 km. Litr benzyny kosztuje ${zl(cena)}. W maju było ${dni} dni roboczych. Ile kosztowało jeżdżenie do pracy w maju?`, v: zl(koszt), w: [zl(Dshift(koszt, -1)), zl(D(koszt.m * 5, koszt.k + 1)), zl(Dmul(D(s * dni, 0), cena)), zl(Dadd(koszt, D(10, 0)))], e: `Dziennie ${s} km tam i ${s} km z powrotem: 2 · ${s} · ${dni} = ${fmtNum(km)} km. Paliwo: ${Dtxt(spal)} · ${km} : 100 = ${Dtxt(litry)} l. Koszt: ${Dtxt(litry)} · ${Dtxt(cena)} = <b>${zl(koszt)}</b>` };
+      }
+      return null;
+    });
+    if (d >= 3) tasks.push(() => { // superzagadka: średni wzrost drużyny
+      const n = pick([4, 5, 5, 6]), x = D(rint(1, 8), 2), diff = D(x.m * n, 2);
+      const M = D(rint(185, 200), 2), h1 = D(rint(190, 200), 2), h2 = Dadd(h1, diff);
+      return { t: `Średni wzrost zawodników ${n}-osobowej drużyny koszykarskiej wynosi ${Dtxt(M)} m. O ile zwiększy się ta średnia, gdyby zamiast zawodnika o wzroście ${Dtxt(h1)} m na boisko wszedł zawodnik mający ${Dtxt(h2)} m?`, v: `o ${Dtxt(x)} m`, w: uniq([`o ${Dtxt(diff)} m`, `o ${Dtxt(Dadd(x, D(1, 2)))} m`, `o ${Dtxt(Dcmp(h2, M) > 0 ? Dsub(h2, M) : Dsub(M, h2))} m`, `o ${Dtxt(Dmul(diff, D(n, 0)))} m`]).filter((t) => t !== `o ${Dtxt(x)} m`), txt: true, e: `Suma wzrostów rośnie o ${Dtxt(h2)} − ${Dtxt(h1)} = ${Dtxt(diff)} m. Średnia to suma : ${n}, więc rośnie o ${Dtxt(diff)} : ${n} = <b>${Dtxt(x)} m</b>` };
+    });
+    let t = null;
+    for (let i = 0; i < 10 && !t; i++) t = pick(tasks)();
+    if (!t) return genDziesietne(d);
+    r.promptHTML = story(t.t);
+    r.options = makeOptions(t.v, uniq(t.w).filter((v) => v !== t.v), t.txt ? optTxt : (v) => v);
+    r.explain = t.e + ".";
+    return r;
+  }
+
   // --- MATEMATYKA: działy z generatorami zadań ---
   const MATH_CATS = [
     { key: "aryt", name: "Działania", icon: "➕", fn: genAryt },
     { key: "kol", name: "Kolejność", icon: "🔢", fn: genKolejnosc },
     { key: "pot", name: "Potęgi", icon: "xⁿ", fn: genPotega },
+    { key: "dzies", name: "Dziesiętne", icon: "0,5", fn: genDziesietne },
     { key: "proc", name: "Procenty", icon: "％", fn: genProcent },
     { key: "ulam", name: "Ułamki", icon: "½", fn: genUlamek },
     { key: "geom", name: "Geometria", icon: "📐", fn: genGeom },
