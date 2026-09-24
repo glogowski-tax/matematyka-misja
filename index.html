@@ -255,6 +255,13 @@
   .frac > span:first-child { border-bottom: .09em solid currentColor; padding: 0 .18em .05em; }
   .frac > span:last-child { padding: .05em .18em 0; }
 
+  /* potęgi i zadania z treścią */
+  sup { font-size: .58em; line-height: 0; vertical-align: .55em; }
+  .prompt .q-story { display: block; font-size: .5em; font-family: var(--font-body); font-weight: 600; line-height: 1.35; letter-spacing: 0; text-wrap: pretty; }
+  .prompt .q-set { display: block; font-size: .72em; line-height: 1.35; word-spacing: .55em; }
+  .q-hole { display: inline-block; min-width: 1.15em; padding: 0 .15em; border: .07em dashed currentColor; border-radius: .25em; line-height: 1.1; text-align: center; opacity: .8; }
+  .opt-text { font-family: var(--font-body); font-weight: 600; font-size: .8em; line-height: 1.25; }
+
   .options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   @media (max-width: 460px) { .options { grid-template-columns: 1fr; } }
 
@@ -724,10 +731,303 @@
     };
   }
 
+  // ---------- Potęgowanie liczb (Matematyka z plusem 6, GWO, s. 24–26) ----------
+  const powHTML = (b, n) => `${b}<sup>${n}</sup>`;
+  const prodHTML = (b, n) => Array(n).fill(b).join(" · ");
+  const ipow = (b, n) => { let r = 1; for (let i = 0; i < n; i++) r *= b; return r; };
+  const pow10 = (n) => "1" + "0".repeat(n); // jako tekst — bez utraty precyzji przy 10⁵⁴
+  const fmtNum = (v) => String(v).replace(/\B(?=(\d{3})+(?!\d))/g, " "); // 1 000 000
+  // liczba dziesiętna zapisana jako m / 10^k → tekst po polsku, np. fmtDec(37, 1) = "3,7"
+  const fmtDec = (m, k) => {
+    let s = String(m);
+    if (k <= 0) return fmtNum(s + "0".repeat(-k));
+    s = s.padStart(k + 1, "0");
+    const ip = s.slice(0, -k), fp = s.slice(-k).replace(/0+$/, "");
+    return fp ? `${fmtNum(ip)},${fp}` : fmtNum(ip);
+  };
+  const czynniki = (n) => n === 1 ? "1 czynnik" : n <= 4 ? `${n} czynniki` : `${n} czynników`;
+  const cyfry = (n) => n === 1 ? "1 cyfrę" : n <= 4 ? `${n} cyfry` : `${n} cyfr`;
+  const LICZEBNIK = ["zero", "jeden", "dwa", "trzy", "cztery", "pięć", "sześć", "siedem", "osiem", "dziewięć", "dziesięć"];
+  const POTEGA_ORD = ["zerowej", "pierwszej", "drugiej", "trzeciej", "czwartej", "piątej", "szóstej", "siódmej", "ósmej", "dziewiątej", "dziesiątej"];
+  const czytajPot = (b, n) => `${LICZEBNIK[b]} do potęgi ${POTEGA_ORD[n]}`;
+  const NAZWY_10 = [[3, "tysiąc"], [6, "milion"], [9, "miliard"], [12, "bilion"], [18, "trylion"], [24, "kwadrylion"], [30, "kwintylion"], [36, "sekstylion"], [42, "septylion"], [48, "oktylion"], [54, "nonilion"]];
+  const nazwa10 = (n) => (NAZWY_10.find((x) => x[0] === n) || [])[1];
+  const uniq = (arr) => [...new Set(arr)];
+  const lead = (t) => `<span class="q-lead">${t}</span>`;
+  const story = (t) => `<span class="q-story">${t}</span>`;
+  const hole = `<span class="q-hole">?</span>`;
+  const znak = (a, b) => a < b ? "<" : a > b ? ">" : "=";
+  const znakHTML = (v) => ({ "<": "&lt;", ">": "&gt;", "=": "=" })[v];
+  const pl = (k, few, many) => `${k} ${k >= 2 && k <= 4 ? few : many}`; // 3 ławki / 5 ławek
+
+  function genPotega(d) {
+    const kinds = ["oblicz", "oblicz", "iloczyn-potega", "potega-iloczyn", "kleks", "dziesiec", "czytaj", "tresc", "tresc"];
+    if (d >= 2) kinds.push("oblicz-dec", "razy10", "porownaj", "rozne");
+    if (d >= 3) kinds.push("nazwy", "oblicz-dec", "porownaj", "ostatnia");
+    const kind = pick(kinds);
+    const r = { cat: "Potęgi" };
+
+    if (kind === "oblicz") { // zad. 1: 3⁴, 5⁴, 20⁴, 100³, 3,4⁰, 2,8¹, 0¹²
+      let b = pick(d < 2 ? [2, 2, 3, 3, 4, 5, 10] : [2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 100]);
+      let n = b >= 6 ? rint(2, 3) : rint(2, d < 2 ? 3 : 5);
+      const sp = Math.random();
+      if (sp < 0.08) { b = 1; n = rint(2, 12); } else if (sp < 0.16) { b = 0; n = rint(2, 12); } else if (sp < 0.26) { n = 1; b = rint(2, 30); } else if (sp < 0.36) { n = 0; b = rint(2, 30); }
+      const ans = ipow(b, n);
+      const wrongs = uniq([b * n, ipow(b, n - 1), ipow(b, n + 1), b + n, ipow(n, b), 0, 1, b, n].filter((v) => v >= 0 && v !== ans && v <= 1e6));
+      let e;
+      if (n === 0) e = `Potęga o wykładniku 0 to zawsze 1 (dla podstawy różnej od zera): ${powHTML(b, 0)} = <b>1</b>`;
+      else if (n === 1) e = `Potęga o wykładniku 1 to ta sama liczba: ${powHTML(b, 1)} = <b>${b}</b>`;
+      else if (b === 1) e = `Jedynka mnożona przez siebie zawsze daje 1: ${powHTML(1, n)} = <b>1</b>`;
+      else if (b === 0) e = `Zero mnożone przez siebie zawsze daje 0: ${powHTML(0, n)} = <b>0</b>`;
+      else e = `${powHTML(b, n)} to ${czynniki(n)}: ${prodHTML(b, n)} = <b>${fmtNum(ans)}</b> (uwaga: to nie ${b} · ${n} = ${b * n})`;
+      r.promptHTML = `${lead("Oblicz")}${powHTML(b, n)}`;
+      r.options = makeOptions(ans, shuffle(wrongs).concat(nearMisses(ans, 1)), (v) => fmtNum(v));
+      r.explain = e + ".";
+      return r;
+    }
+
+    if (kind === "oblicz-dec") { // zad. 1: 0,1⁴, 0,2⁴, 0,01⁴, 1,5¹, 0,2² = 0,04
+      const [m, k] = pick([[1, 1], [2, 1], [3, 1], [5, 1], [1, 2], [2, 2], [15, 1], [12, 1], [28, 1], [34, 1], [7, 1]]);
+      let n = m >= 10 ? pick([0, 1, 2]) : rint(0, 4);
+      if (k === 2 && n > 3) n = 3;
+      const mp = ipow(m, n), kp = k * n, bs = fmtDec(m, k);
+      const correct = fmtDec(mp, kp);
+      const wrongs = uniq([fmtDec(mp, k), fmtDec(mp, kp + 1), fmtDec(mp, Math.max(0, kp - 1)), fmtDec(m * n, k), fmtDec(mp, 0), bs, "0", "1", "10"]).filter((v) => v !== correct);
+      r.promptHTML = `${lead("Oblicz")}${powHTML(bs, n)}`;
+      r.options = makeOptions(correct, shuffle(wrongs), (v) => v);
+      r.explain = n === 0 ? `Wykładnik 0 daje zawsze 1: ${powHTML(bs, 0)} = <b>1</b>.`
+        : n === 1 ? `Wykładnik 1 to ta sama liczba: ${powHTML(bs, 1)} = <b>${bs}</b>.`
+        : `${powHTML(bs, n)} = ${prodHTML(bs, n)}. Liczymy ${prodHTML(m, n)} = ${fmtNum(mp)} i oddzielamy przecinkiem ${cyfry(kp)} (po ${k} z każdego czynnika): <b>${correct}</b>.`;
+      return r;
+    }
+
+    if (kind === "iloczyn-potega") { // 8 · 8 · 8 = 8³
+      const b = d >= 2 && Math.random() < 0.3 ? pick([12, 20, 25, 100, "0,5", "1,5"]) : rint(2, 9);
+      const n = rint(2, d < 2 ? 4 : 6);
+      const bn = typeof b === "number" ? b : null;
+      const wrongs = uniq([bn ? powHTML(n, b) : powHTML(b, n * 2), powHTML(b, n - 1), powHTML(b, n + 1), bn ? String(b * n) : `${n} · ${b}`]);
+      r.promptHTML = `${lead("Zapisz w postaci potęgi")}${prodHTML(b, n)}`;
+      r.options = makeOptions(powHTML(b, n), shuffle(wrongs), (v) => v);
+      r.explain = `Czynnik ${b} występuje ${n} razy, więc ${prodHTML(b, n)} = <b>${powHTML(b, n)}</b>. Podstawa to ${b}, wykładnik to ${n}.`;
+      return r;
+    }
+
+    if (kind === "potega-iloczyn") { // 8⁵ = 8 · 8 · 8 · 8 · 8
+      const b = rint(2, 12), n = rint(2, d < 2 ? 4 : 6);
+      const wrongs = uniq([prodHTML(n, b), `${b} · ${n}`, Array(n).fill(b).join(" + "), prodHTML(b, n - 1), prodHTML(b, n + 1)]);
+      r.promptHTML = `${lead("Zapisz jako iloczyn jednakowych czynników")}${powHTML(b, n)}`;
+      r.options = makeOptions(prodHTML(b, n), shuffle(wrongs), (v) => v);
+      r.explain = `Wykładnik ${n} mówi, ile razy podstawa ${b} występuje jako czynnik: ${powHTML(b, n)} = <b>${prodHTML(b, n)}</b>.`;
+      return r;
+    }
+
+    if (kind === "kleks") { // zad. 3: jakie liczby kryją się pod kleksami
+      const form = pick(d < 2 ? ["podstawa", "wykladnik", "wykladnik10"] : ["podstawa", "wykladnik", "wykladnik10", "podstawa-dec", "wykladnik-dec"]);
+      if (form === "podstawa") {
+        const n = pick([2, 2, 3]), b = n === 2 ? pick([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 20, 100]) : pick([2, 3, 4, 5, 10]);
+        const ans = ipow(b, n);
+        const wrongs = uniq([b - 1, b + 1, ans / n, ans / 2, n].filter((v) => v > 0 && Number.isInteger(v) && v !== b));
+        r.promptHTML = `${lead("Jaka liczba kryje się pod znakiem zapytania?")}${hole}<sup>${n}</sup> = ${fmtNum(ans)}`;
+        r.options = makeOptions(b, shuffle(wrongs).concat(nearMisses(b, 1)), (v) => fmtNum(v));
+        r.explain = `${prodHTML(b, n)} = ${fmtNum(ans)}, więc podstawą jest <b>${b}</b>: ${powHTML(b, n)} = ${fmtNum(ans)}.`;
+      } else if (form === "wykladnik" || form === "wykladnik10") {
+        const b = form === "wykladnik10" ? 10 : pick([2, 2, 3, 5]);
+        const n = b === 2 ? rint(2, d < 3 ? 6 : 10) : b === 3 ? rint(2, 5) : b === 5 ? rint(2, 4) : rint(2, 9);
+        const ansTxt = b === 10 ? fmtNum(pow10(n)) : fmtNum(ipow(b, n));
+        const wrongs = uniq([n - 1, n + 1, b, n + 2, b === 10 ? n * 10 : ipow(b, n) / b].filter((v) => v >= 1 && v !== n));
+        r.promptHTML = `${lead("Jaki wykładnik kryje się pod znakiem zapytania?")}${powHTML(b, hole)} = ${ansTxt}`;
+        r.options = makeOptions(n, shuffle(wrongs), numRender);
+        r.explain = b === 10 ? `${ansTxt} to jedynka i ${n} zer, czyli ${powHTML(10, n)} — wykładnik to <b>${n}</b>.`
+          : `${prodHTML(b, n)} = ${ansTxt}, czyli ${czynniki(n)} — wykładnik to <b>${n}</b>.`;
+      } else if (form === "podstawa-dec") { // ?² = 0,04
+        const [m, k] = pick([[2, 1], [3, 1], [5, 1], [1, 1], [1, 2], [12, 1], [15, 1]]), n = m >= 10 ? 2 : pick([2, 3]);
+        const mp = ipow(m, n), kp = k * n, bs = fmtDec(m, k), ansTxt = fmtDec(mp, kp);
+        const wrongs = uniq([fmtDec(m, k + 1), fmtDec(m, Math.max(0, k - 1)), fmtDec(mp, k), fmtDec(m * n, k), fmtDec(m + 1, k)]).filter((v) => v !== bs);
+        r.promptHTML = `${lead("Jaka liczba kryje się pod znakiem zapytania?")}${hole}<sup>${n}</sup> = ${ansTxt}`;
+        r.options = makeOptions(bs, shuffle(wrongs), (v) => v);
+        r.explain = `${prodHTML(bs, n)} = ${ansTxt} (bo ${prodHTML(m, n)} = ${mp}, a przecinek oddziela ${cyfry(kp)}), więc podstawa to <b>${bs}</b>.`;
+      } else { // 0,1^? = 0,00001
+        const [m, k] = pick([[1, 1], [1, 1], [2, 1], [3, 1], [1, 2]]), n = k === 2 ? rint(2, 4) : rint(2, 6);
+        const mp = ipow(m, n), kp = k * n, bs = fmtDec(m, k), ansTxt = fmtDec(mp, kp);
+        const wrongs = uniq([n - 1, n + 1, kp + 1, kp - 1, n + 2].filter((v) => v >= 1 && v !== n));
+        r.promptHTML = `${lead("Jaki wykładnik kryje się pod znakiem zapytania?")}${powHTML(bs, hole)} = ${ansTxt}`;
+        r.options = makeOptions(n, shuffle(wrongs), numRender);
+        r.explain = `${prodHTML(bs, n)} = ${ansTxt}: ${czynniki(n)}, każdy z ${k === 1 ? "jedną cyfrą" : "dwiema cyframi"} po przecinku, razem ${cyfry(kp)} po przecinku — wykładnik to <b>${n}</b>.`;
+      }
+      return r;
+    }
+
+    if (kind === "dziesiec") { // ćw. B, zad. 8, 10: potęgi liczby 10
+      const form = pick(d < 2 ? ["oblicz", "zapisz"] : d < 3 ? ["oblicz", "zapisz", "razy"] : ["oblicz", "zapisz", "razy", "ile"]);
+      if (form === "oblicz") {
+        const n = rint(1, d < 3 ? 6 : 9), ans = pow10(n);
+        const wrongs = uniq([pow10(n - 1), pow10(n + 1), String(10 * n), String(n * n)]).filter((v) => v !== ans);
+        r.promptHTML = `${lead("Oblicz")}${powHTML(10, n)}`;
+        r.options = makeOptions(ans, shuffle(wrongs), (v) => fmtNum(v));
+        r.explain = `${powHTML(10, n)} to jedynka i ${n} ${n === 1 ? "zero" : n <= 4 ? "zera" : "zer"}: <b>${fmtNum(ans)}</b>.`;
+      } else if (form === "zapisz") {
+        const n = rint(2, d < 3 ? 8 : 15), ans = pow10(n);
+        const wrongs = uniq([powHTML(10, n - 1), powHTML(10, n + 1), powHTML(n, 10), powHTML(10, n + 2)]);
+        r.promptHTML = `${lead("Zapisz w postaci potęgi liczby 10")}${fmtNum(ans)}`;
+        r.options = makeOptions(powHTML(10, n), shuffle(wrongs), (v) => v);
+        r.explain = `Liczba ${fmtNum(ans)} to jedynka i ${n} zer, więc to <b>${powHTML(10, n)}</b>.`;
+      } else if (form === "razy") { // liczba 10 razy większa od 10⁴
+        const n = rint(2, 9), f = pick([1, 1, 2, 3]), wieksza = Math.random() < 0.5;
+        const ans = wieksza ? n + f : n - f;
+        const fTxt = f === 1 ? "10" : f === 2 ? "100" : "1000";
+        const wrongs = uniq([powHTML(10, wieksza ? n - f : n + f), powHTML(10, n * ipow(10, f)), powHTML(10, n), powHTML(10, ans + 1), powHTML(10, ans - 1)]).filter((v) => v !== powHTML(10, ans));
+        r.promptHTML = `${story(`Zapisz w postaci potęgi liczby 10 liczbę ${fTxt} razy ${wieksza ? "większą" : "mniejszą"} od`)}${powHTML(10, n)}`;
+        r.options = makeOptions(powHTML(10, ans), shuffle(wrongs), (v) => v);
+        r.explain = `${fTxt} = ${powHTML(10, f)}. ${wieksza ? "Mnożenie" : "Dzielenie"} przez ${fTxt} ${wieksza ? "dopisuje" : "zabiera"} ${f} ${f === 1 ? "zero" : "zera"}: ${powHTML(10, n)} ${wieksza ? "·" : ":"} ${fTxt} = <b>${powHTML(10, ans)}</b>.`;
+      } else { // 10¹³ — ile to milionów?
+        const [u, uname] = pick([[3, "tysięcy"], [6, "milionów"], [9, "miliardów"]]);
+        const n = rint(u + 1, u + 7), ans = pow10(n - u);
+        const wrongs = uniq([pow10(n - u - 1), pow10(n - u + 1), pow10(n), String(n - u)]).filter((v) => v !== ans);
+        r.promptHTML = `${lead(`Ile to ${uname}?`)}${powHTML(10, n)}`;
+        r.options = makeOptions(ans, shuffle(wrongs), (v) => fmtNum(v));
+        r.explain = `${nazwa10(u).charAt(0).toUpperCase() + nazwa10(u).slice(1)} to ${powHTML(10, u)}, a ${powHTML(10, n)} = ${powHTML(10, n - u)} · ${powHTML(10, u)}, czyli <b>${fmtNum(ans)}</b> ${uname}.`;
+      }
+      return r;
+    }
+
+    if (kind === "nazwy") { // ćw. B, zad. 8c-d, 9: wielkie liczby
+      const form = pick(["nazwa-potega", "potega-nazwa", "iloczyn-nazw"]);
+      if (form === "nazwa-potega") {
+        const [n, name] = pick(NAZWY_10);
+        const wrongs = shuffle(NAZWY_10.filter((x) => x[0] !== n)).map((x) => powHTML(10, x[0]));
+        r.promptHTML = `${lead("Zapisz w postaci potęgi liczby 10")}${name}`;
+        r.options = makeOptions(powHTML(10, n), wrongs, (v) => v);
+        r.explain = `${name.charAt(0).toUpperCase() + name.slice(1)} to ${n <= 18 ? fmtNum(pow10(n)) : "jedynka i " + n + " zer"} = <b>${powHTML(10, n)}</b>. Milion = 10<sup>6</sup>, miliard = 10<sup>9</sup>, bilion = 10<sup>12</sup>, trylion = 10<sup>18</sup>, kwadrylion = 10<sup>24</sup>.`;
+      } else if (form === "potega-nazwa") {
+        const [n, name] = pick(NAZWY_10);
+        const wrongs = shuffle(NAZWY_10.filter((x) => x[0] !== n)).map((x) => x[1]);
+        r.promptHTML = `${lead("Jak nazywa się ta liczba?")}${powHTML(10, n)}`;
+        r.options = makeOptions(name, wrongs, (v) => `<span class="opt-text">${v}</span>`);
+        r.explain = `${powHTML(10, n)} to ${n <= 18 ? fmtNum(pow10(n)) : "jedynka i " + n + " zer"}, czyli <b>${name}</b>.`;
+      } else { // sto milionów, milion milionów, tysiąc bilionów
+        const [p, pname] = pick([[2, "sto"], [3, "tysiąc"], [6, "milion"]]);
+        const [n, name] = pick(NAZWY_10.filter((x) => x[0] >= 6 && x[0] <= 36));
+        const gen = name.endsWith("ard") ? name + "ów" : name + "ów"; // milionów, miliardów, bilionów, trylionów…
+        const ans = p + n;
+        const wrongs = uniq([powHTML(10, p * n), powHTML(10, n), powHTML(10, ans + 1), powHTML(10, ans - 1), powHTML(10, ans + 3)]).filter((v) => v !== powHTML(10, ans));
+        r.promptHTML = `${lead("Zapisz w postaci potęgi liczby 10")}${pname} ${gen}`;
+        r.options = makeOptions(powHTML(10, ans), shuffle(wrongs), (v) => v);
+        r.explain = `${pname.charAt(0).toUpperCase() + pname.slice(1)} to ${powHTML(10, p)}, ${name} to ${powHTML(10, n)}. ${powHTML(10, p)} · ${powHTML(10, n)} to jedynka i ${p} + ${n} = ${ans} zer: <b>${powHTML(10, ans)}</b>${nazwa10(ans) ? " (" + nazwa10(ans) + ")" : ""}.`;
+      }
+      return r;
+    }
+
+    if (kind === "razy10") { // zad. 7: 2 · 10⁶, 3,7 · 10³, 3 : 10³, 2,75 : 10²
+      const [m, k] = pick([[2, 0], [7, 0], [3, 0], [37, 1], [254, 2], [275, 2], [45, 1], [12, 1], [6, 0], [125, 1]]);
+      const mul = Math.random() < 0.55;
+      const n = mul ? rint(1, d < 3 ? 4 : 8) : rint(1, 4);
+      const ans = mul ? fmtDec(m, k - n) : fmtDec(m, k + n);
+      const wrongs = uniq([mul ? fmtDec(m, k + n) : fmtDec(m, k - n), mul ? fmtDec(m, k - n + 1) : fmtDec(m, k + n + 1), mul ? fmtDec(m, k - n - 1) : fmtDec(m, k + n - 1), fmtDec(m * n, k), fmtDec(m, k)]).filter((v) => v !== ans);
+      const bs = fmtDec(m, k);
+      r.promptHTML = `${lead("Oblicz")}${bs} ${mul ? "·" : ":"} ${powHTML(10, n)}`;
+      r.options = makeOptions(ans, shuffle(wrongs), (v) => v);
+      r.explain = `${powHTML(10, n)} = ${fmtNum(pow10(n))}. ${mul ? "Mnożenie" : "Dzielenie"} przez ${fmtNum(pow10(n))} przesuwa przecinek o ${n} ${n === 1 ? "miejsce" : n <= 4 ? "miejsca" : "miejsc"} w ${mul ? "prawo" : "lewo"}: ${bs} ${mul ? "·" : ":"} ${fmtNum(pow10(n))} = <b>${ans}</b>.`;
+      return r;
+    }
+
+    if (kind === "porownaj") { // zad. 9 + typowe pułapki
+      const forms = [
+        () => { const a = rint(2, 5), b = rint(2, 5); return { L: powHTML(a, b), R: powHTML(b, a), lv: ipow(a, b), rv: ipow(b, a), le: `${powHTML(a, b)} = ${ipow(a, b)}`, re: `${powHTML(b, a)} = ${ipow(b, a)}` }; },
+        () => { const a = rint(2, 6), b = rint(2, 4); return { L: powHTML(a, b), R: `${a} · ${b}`, lv: ipow(a, b), rv: a * b, le: `${powHTML(a, b)} = ${ipow(a, b)}`, re: `${a} · ${b} = ${a * b}` }; },
+        () => { const a = rint(2, 6); return { L: `${a} + ${a}`, R: powHTML(a, 2), lv: 2 * a, rv: a * a, le: `${a} + ${a} = ${2 * a}`, re: `${powHTML(a, 2)} = ${a * a}` }; },
+        () => { const a = rint(2, 9), n = rint(2, 9); return { L: powHTML(a, 0), R: powHTML(1, n), lv: 1, rv: 1, le: `${powHTML(a, 0)} = 1`, re: `${powHTML(1, n)} = 1` }; },
+        () => { const a = rint(2, 9); return { L: powHTML(a, 0), R: powHTML(a, 1), lv: 1, rv: a, le: `${powHTML(a, 0)} = 1`, re: `${powHTML(a, 1)} = ${a}` }; },
+        () => { const m = pick([2, 3, 5]), n = pick([2, 3]); return { L: powHTML(fmtDec(m, 1), n), R: fmtDec(m, 1), lv: ipow(m, n) / ipow(10, n), rv: m / 10, le: `${powHTML(fmtDec(m, 1), n)} = ${fmtDec(ipow(m, n), n)}`, re: `${fmtDec(m, 1)} to ${fmtDec(m, 1)}` }; }
+      ];
+      if (d >= 3) forms.push(() => { // tysiąc bilionów ? trylion
+        const [p, pname] = pick([[3, "tysiąc"], [6, "milion"]]);
+        const [n, name] = pick(NAZWY_10.filter((x) => x[0] >= 6 && x[0] <= 48));
+        const [n2, name2] = pick(NAZWY_10.filter((x) => Math.abs(x[0] - (p + n)) <= 6));
+        return { L: `${pname} ${name}ów`, R: name2, lv: p + n, rv: n2, le: `${pname} ${name}ów to ${powHTML(10, p)} · ${powHTML(10, n)} = ${powHTML(10, p + n)}`, re: `${name2} to ${powHTML(10, n2)}`, txt: true };
+      });
+      const f = pick(forms)();
+      const sign = znak(f.lv, f.rv);
+      r.promptHTML = f.txt ? `${lead("Jaki znak: &lt;, &gt; czy =?")}<span class="q-story">${f.L} ${hole} ${f.R}</span>` : `${lead("Jaki znak: &lt;, &gt; czy =?")}${f.L} ${hole} ${f.R}`;
+      r.options = makeOptions(sign, ["<", ">", "="], znakHTML);
+      r.explain = `${f.le}, a ${f.re}, więc ${f.L} <b>${znakHTML(sign)}</b> ${f.R}.`;
+      return r;
+    }
+
+    if (kind === "rozne") { // zad. 2: ile różnych liczb zapisano
+      const pool = [
+        [powHTML("0,7", 0), "1"], [powHTML(0, 5), "0"], [powHTML(7, 1), "7"], [powHTML(1, 0), "1"], [powHTML(1, 7), "1"], [powHTML("0,1", 1), "0,1"],
+        [powHTML(2, 3), "8"], [powHTML(8, 1), "8"], [powHTML(3, 0), "1"], [powHTML("0,5", 1), "0,5"], [powHTML(10, 0), "1"], [powHTML(0, 3), "0"],
+        [powHTML(2, 2), "4"], [powHTML(4, 1), "4"], [powHTML(1, 12), "1"], [powHTML(9, 0), "1"], [powHTML(0, 1), "0"], [powHTML(5, 1), "5"]
+      ];
+      const set = shuffle(pool.slice()).slice(0, rint(5, 6));
+      const cnt = uniq(set.map((x) => x[1])).length;
+      const wrongs = uniq([cnt - 1, cnt + 1, cnt + 2, cnt - 2, set.length].filter((v) => v >= 1 && v !== cnt));
+      r.promptHTML = `${lead("Ile różnych liczb tu zapisano?")}<span class="q-set">${set.map((x) => x[0]).join(" ")}</span>`;
+      r.options = makeOptions(cnt, shuffle(wrongs), numRender);
+      r.explain = `${set.map((x) => `${x[0]} = ${x[1]}`).join(", ")}. Różnych liczb jest <b>${cnt}</b>: ${uniq(set.map((x) => x[1])).join(", ")}.`;
+      return r;
+    }
+
+    if (kind === "czytaj") { // dwa do potęgi drugiej lub kwadrat liczby 2
+      const b = rint(2, 10), n = rint(2, d < 3 ? 5 : 10);
+      const alt = n === 2 ? `kwadrat liczby ${b}` : n === 3 ? `sześcian liczby ${b}` : "";
+      if (Math.random() < 0.5) {
+        const wrongs = uniq([czytajPot(n, b), `${LICZEBNIK[b]} razy ${LICZEBNIK[n]}`, czytajPot(b, n === 2 ? 3 : 2), n === 2 ? `sześcian liczby ${b}` : `kwadrat liczby ${b}`]).filter((w) => w !== czytajPot(b, n));
+        r.promptHTML = `${lead("Jak czytamy tę potęgę?")}${powHTML(b, n)}`;
+        r.options = makeOptions(czytajPot(b, n) + (alt ? ` (${alt})` : ""), shuffle(wrongs), (v) => `<span class="opt-text">${v}</span>`);
+        r.explain = `Podstawa ${b}, wykładnik ${n}: czytamy „<b>${czytajPot(b, n)}</b>”${alt ? " albo „" + alt + "”" : ""}.`;
+      } else {
+        const said = alt && Math.random() < 0.5 ? alt : czytajPot(b, n);
+        const wrongs = uniq([powHTML(n, b), `${b} · ${n}`, powHTML(b, n + 1), powHTML(b, n - 1)]);
+        r.promptHTML = `${lead("Zapisz potęgę")}<span class="q-story">${said}</span>`;
+        r.options = makeOptions(powHTML(b, n), shuffle(wrongs), (v) => v);
+        r.explain = `„${said}” to podstawa ${b} i wykładnik ${n}: <b>${powHTML(b, n)}</b>.`;
+      }
+      return r;
+    }
+
+    if (kind === "ostatnia") { // superzagadka: cyfra jedności liczby 12²⁰
+      const b = pick([2, 3, 4, 7, 8, 9, 12, 13, 14, 17, 18, 19, 5, 6, 11, 15, 16]);
+      const n = rint(10, 40);
+      const seq = []; let c = 1;
+      for (let i = 0; i < 8; i++) { c = (c * b) % 10; seq.push(c); }
+      let L = 1; while (L < 4 && !seq.every((v, i) => i + L >= seq.length || seq[i + L] === v)) L++;
+      const ans = seq[(n - 1) % L];
+      const cyc = seq.slice(0, L).join(", ");
+      const posTxt = L === 1 ? `Wszystkie potęgi liczby ${b} kończą się na ${seq[0]}`
+        : `Ostatnie cyfry kolejnych potęg liczby ${b} to ${cyc}, ${cyc}, … — powtarzają się co ${L}. Wykładnik ${n} = ${Math.floor(n / L)} · ${L}${n % L ? " + " + (n % L) : ""}, więc ${powHTML(b, n)} kończy się tak jak ${powHTML(b, ((n - 1) % L) + 1)}`;
+      r.promptHTML = `${lead("Jaka jest cyfra jedności tej liczby?")}${powHTML(b, n)}`;
+      r.options = makeOptions(ans, shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter((v) => v !== ans)), numRender);
+      r.explain = `${posTxt}, czyli na <b>${ans}</b>. Nie trzeba liczyć całej potęgi — wystarczy śledzić ostatnią cyfrę.`;
+      return r;
+    }
+
+    // "tresc" — zadania z treścią: ćw. A, zad. 4, 5, 6
+    const POKOLENIA = { 1: "rodziców", 2: "dziadków", 3: "pradziadków", 4: "prapradziadków", 5: "praprapradziadków", 6: "prapraprapradziadków" };
+    const tasks = [
+      () => { const h = rint(2, d < 3 ? 6 : 10), ans = ipow(2, h); return { t: `Drożdże rozmnażają się szybko: co godzinę ich ilość się podwaja. Ile razy zwiększy się ilość drożdży po ${h} godzinach?`, v: ans, w: [2 * h, ipow(2, h - 1), ipow(2, h + 1), h * h], e: `Co godzinę ilość mnoży się przez 2, więc po ${h} godzinach jest ${powHTML(2, h)} = ${prodHTML(2, h)} = <b>${ans}</b> razy więcej` }; },
+      () => { const g = rint(2, 6), ans = ipow(2, g); return { t: `Każdy człowiek ma 2 rodziców, a każdy z rodziców też ma 2 rodziców. Ilu ${POKOLENIA[g]} ma każdy z nas?`, v: ans, w: [2 * g, ipow(2, g - 1), ipow(2, g + 1), g * g], e: `Każde pokolenie wstecz to 2 razy więcej osób: rodziców 2, dziadków ${powHTML(2, 2)} = 4, … ${POKOLENIA[g]} ${powHTML(2, g)} = <b>${ans}</b>` }; },
+      () => { const g = rint(3, 6), ans = powHTML(2, g); return { t: `Zapisz jako potęgę liczby 2, ilu ${POKOLENIA[g]} ma każdy z nas.`, v: ans, w: [powHTML(2, g - 1), powHTML(2, g + 1), powHTML(g, 2), `2 · ${g}`], html: true, e: `${POKOLENIA[g].charAt(0).toUpperCase() + POKOLENIA[g].slice(1)} to ${g}. pokolenie wstecz: ${prodHTML(2, g)} = <b>${powHTML(2, g)}</b> (= ${ipow(2, g)})` }; },
+      () => { const N = pick([30, 60, 100, 200, 500, 1000, 2000]); let g = 1; while (ipow(2, g) <= N) g++; return { t: `Rodzice to pierwsze pokolenie wstecz, dziadkowie drugie, pradziadkowie trzecie itd. W którym pokoleniu wstecz liczba twoich przodków po raz pierwszy przekroczy ${fmtNum(N)}?`, v: g, w: [g - 1, g + 1, g + 2, Math.round(N / 2)], e: `W ${g - 1}. pokoleniu jest ${powHTML(2, g - 1)} = ${ipow(2, g - 1)} przodków (jeszcze nie), a w ${g}. pokoleniu ${powHTML(2, g)} = ${ipow(2, g)} — więcej niż ${fmtNum(N)}. Odpowiedź: <b>${g}</b>. pokolenie` }; },
+      () => { const k = pick(d < 2 ? [3, 4, 5, 6, 7] : [4, 6, 7, 8, 9, 10, 12, 20]), ans = k * k; return { t: `Kwadrat narysowany w zeszycie w kratkę ma bok długości ${k} kratek. Z ilu kratek się składa?`, v: ans, w: [2 * k, 4 * k, ipow(k, 3), k * (k - 1)], e: `Kratki tworzą ${k} rzędów po ${k}: ${powHTML(k, 2)} = <b>${ans}</b>` }; },
+      () => { const k = rint(3, 6), ans = ipow(k, 3); return { t: `Kolejka ma ${pl(k, "wagoniki", "wagoników")}. W każdym wagoniku ${k >= 5 ? "jest" : "są"} ${pl(k, "ławki", "ławek")}, a na każdej ławce ${k >= 5 ? "jest" : "są"} ${pl(k, "miejsca", "miejsc")}. Ile miejsc jest w całej kolejce?`, v: ans, w: [3 * k, k * k, ipow(k, 4), 2 * k * k], e: `Wagoniki · ławki · miejsca = ${k} · ${k} · ${k} = ${powHTML(k, 3)} = <b>${ans}</b>` }; }
+    ];
+    if (d >= 3) tasks.push(() => { // zad. 6b: ile liczb naturalnych ma kwadrat między A i B
+      const lo = pick([2, 3, 4, 5, 10]), hi = lo + rint(3, 8);
+      const A = lo * lo, B = hi * hi, ans = hi - lo - 1;
+      return { t: `Ile jest liczb naturalnych, których kwadrat jest większy od ${A} i mniejszy od ${B}?`, v: ans, w: [ans + 1, ans - 1, ans + 2, B - A], e: `${powHTML(lo, 2)} = ${A} i ${powHTML(hi, 2)} = ${B}, więc pasują liczby od ${lo + 1} do ${hi - 1} — jest ich <b>${ans}</b>` }; });
+    const t = pick(tasks)();
+    r.promptHTML = story(t.t);
+    r.options = t.html ? makeOptions(t.v, uniq(t.w), (v) => v) : makeOptions(t.v, uniq(t.w.filter((v) => v > 0 && v !== t.v)).concat(nearMisses(t.v, 1)), (v) => fmtNum(v));
+    r.explain = t.e + ".";
+    return r;
+  }
+
   // --- MATEMATYKA: działy z generatorami zadań ---
   const MATH_CATS = [
     { key: "aryt", name: "Działania", icon: "➕", fn: genAryt },
     { key: "kol", name: "Kolejność", icon: "🔢", fn: genKolejnosc },
+    { key: "pot", name: "Potęgi", icon: "xⁿ", fn: genPotega },
     { key: "proc", name: "Procenty", icon: "％", fn: genProcent },
     { key: "ulam", name: "Ułamki", icon: "½", fn: genUlamek },
     { key: "geom", name: "Geometria", icon: "📐", fn: genGeom },
