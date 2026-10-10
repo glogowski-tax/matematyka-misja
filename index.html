@@ -539,12 +539,12 @@
     <div class="bar"><span id="lvlBar"></span></div>
   </div>
 
-  <section class="picker" aria-label="Wybór działu">
+  <section class="picker" aria-label="Wybór działu i tematu">
     <div class="picker-title">Gracz</div>
     <div class="profiles" id="profiles"></div>
-    <div class="picker-title">Przedmiot</div>
+    <div class="picker-title">Dział</div>
     <div class="subjects" id="subjects"></div>
-    <div class="picker-title">Dział — wybierz, co ćwiczyć</div>
+    <div class="picker-title">Temat — wybierz, co ćwiczyć</div>
     <div class="chips" id="chips"></div>
   </section>
 
@@ -682,8 +682,8 @@
     };
   }
 
-  function genGeom(d) {
-    const kind = pick(["prost-pole", "prost-obw", "kwadrat-pole", "trojkat-pole"]);
+  function genGeom(d, kinds) {
+    const kind = pick(kinds || ["prost-pole", "prost-obw", "kwadrat-pole", "trojkat-pole"]);
     let promptHTML, ans, unit, explain;
     if (kind === "prost-pole") {
       const a = rint(3, 9 + d), b = rint(3, 9 + d); ans = a * b; unit = "cm²";
@@ -691,6 +691,9 @@
     } else if (kind === "prost-obw") {
       const a = rint(3, 12 + d), b = rint(3, 12 + d); ans = 2 * (a + b); unit = "cm";
       promptHTML = `Obwód prostokąta<br>${a} cm × ${b} cm`; explain = `Obwód = 2·(a+b) = 2·(${a}+${b}) = <b>${ans} cm</b>.`;
+    } else if (kind === "kwadrat-obw") {
+      const a = rint(3, 15 + d); ans = 4 * a; unit = "cm";
+      promptHTML = `Obwód kwadratu<br>o boku ${a} cm`; explain = `Obwód = 4·a = 4·${a} = <b>${ans} cm</b>.`;
     } else if (kind === "kwadrat-pole") {
       const a = rint(3, 12 + d); ans = a * a; unit = "cm²";
       promptHTML = `Pole kwadratu<br>o boku ${a} cm`; explain = `Pole = a·a = ${a}·${a} = <b>${ans} cm²</b>.`;
@@ -707,11 +710,11 @@
       const wrongIdx = opts.findIndex((o) => !o.correct);
       if (wrongIdx >= 0) opts[wrongIdx].html = `${ans} ${otherUnit}`;
     }
-    return { cat: "Geometria", promptHTML, options: opts, explain };
+    return { cat: unit === "cm²" ? "Pola figur" : "Obwody", promptHTML, options: opts, explain };
   }
 
-  function genRownania(d) {
-    const form = pick(["add", "sub", "mul", "linear"]);
+  function genRownania(d, forms) {
+    const form = pick(forms || ["add", "sub", "mul", "linear"]);
     let expr, ans, e;
     if (form === "add") {
       const a = rint(2, 10 + d * 2), x = rint(2, 12 + d * 3), b = a + x;
@@ -727,7 +730,7 @@
       expr = `${a} · x + ${b} = ${c}`; ans = x; e = `${a}·x = ${c} − ${b} = ${a * x}, więc x = <b>${x}</b>`;
     }
     return {
-      cat: "Algebra",
+      cat: "Równania",
       promptHTML: `<span class="q-lead">Ile wynosi x?</span>${expr}`,
       options: makeOptions(ans, nearMisses(ans, 1), numRender),
       explain: e + "."
@@ -1243,485 +1246,34 @@
     return r;
   }
 
-  // ---------- JĘZYK POLSKI: części mowy (klasa 6, podstawa programowa) ----------
-  const hl = (s) => s.replace(/\*\*(.+?)\*\*/g, '<mark class="hl">$1</mark>'); // **wyraz** → wyróżnienie
-  const ktory = (s) => (s.match(/\*\*(.+?)\*\*/) || [])[1] || "";
-  const pickN = (arr, n, not) => shuffle(arr.filter((x) => !not || !not.includes(x))).slice(0, n);
-  const CZM = { // meta części mowy
-    rzeczownik: { pyt: "kto? co?", opis: "nazywa osoby, zwierzęta, rzeczy, rośliny, zjawiska i uczucia", odm: "przypadki" },
-    czasownik: { pyt: "co robi? co się z nim dzieje? w jakim jest stanie?", opis: "nazywa czynności i stany", odm: "osoby" },
-    przymiotnik: { pyt: "jaki? jaka? jakie? który? czyj?", opis: "określa cechy osób, rzeczy i zjawisk", odm: "przypadki" },
-    przysłówek: { pyt: "jak? gdzie? kiedy?", opis: "określa czasownik: sposób, miejsce lub czas czynności", odm: "nie" },
-    liczebnik: { pyt: "ile? który z kolei?", opis: "oznacza liczbę lub kolejność", odm: "przypadki" },
-    zaimek: { pyt: "(takie jak część mowy, którą zastępuje)", opis: "zastępuje rzeczownik, przymiotnik, liczebnik lub przysłówek", odm: "przypadki" },
-    przyimek: { pyt: "(nie odpowiada na pytania)", opis: "łączy się z rzeczownikiem lub zaimkiem i tworzy wyrażenie przyimkowe, np. pod stołem", odm: "nie" },
-    spójnik: { pyt: "(nie odpowiada na pytania)", opis: "łączy wyrazy lub zdania, np. i, ale, bo, że", odm: "nie" },
-    partykuła: { pyt: "(nie odpowiada na pytania)", opis: "wzmacnia, zaprzecza, pyta lub wyraża życzenie, np. nie, czy, niech, chyba", odm: "nie" },
-    wykrzyknik: { pyt: "(nie odpowiada na pytania)", opis: "wyraża uczucia, dźwięki lub wezwania, np. och, hura, hej", odm: "nie" }
-  };
-  const CZM_NAZWY = Object.keys(CZM);
-  const ZDANIA = [ // [zdanie z **wyrazem**, część mowy]
-    ["Na stole leży **książka**.", "rzeczownik"], ["Mój **brat** gra w piłkę.", "rzeczownik"], ["W ogrodzie rośnie stara **jabłoń**.", "rzeczownik"], ["**Radość** rozpierała wszystkich.", "rzeczownik"], ["Kupiliśmy nowy **komputer**.", "rzeczownik"], ["Nad jeziorem latały **mewy**.", "rzeczownik"], ["**Warszawa** jest stolicą Polski.", "rzeczownik"], ["Dziadek opowiadał o swoim **dzieciństwie**.", "rzeczownik"],
-    ["Ania **czyta** ciekawą powieść.", "czasownik"], ["Wczoraj **padało** przez cały dzień.", "czasownik"], ["Jutro **pojedziemy** nad morze.", "czasownik"], ["Dzieci **śpią** już od godziny.", "czasownik"], ["Lubię **pływać** w jeziorze.", "czasownik"], ["**Umyj** ręce przed obiadem!", "czasownik"], ["Chętnie **pomógłbym** ci w zadaniu.", "czasownik"], ["Kot **wskoczył** na parapet.", "czasownik"],
-    ["Mama upiekła **pyszne** ciasto.", "przymiotnik"], ["**Zielony** samochód stoi pod domem.", "przymiotnik"], ["To była **długa** i nudna lekcja.", "przymiotnik"], ["Kupiłem **drewniany** stół.", "przymiotnik"], ["**Babcine** opowieści zawsze mnie bawią.", "przymiotnik"], ["Wybraliśmy **najkrótszą** drogę.", "przymiotnik"], ["Na niebie pojawiły się **ciemne** chmury.", "przymiotnik"], ["Mieszkam w **wysokim** bloku.", "przymiotnik"],
-    ["Ola **szybko** rozwiązała zadanie.", "przysłówek"], ["**Wczoraj** byliśmy w kinie.", "przysłówek"], ["Klucze leżą **tutaj**.", "przysłówek"], ["Piotrek **głośno** się śmiał.", "przysłówek"], ["**Wszędzie** było pełno ludzi.", "przysłówek"], ["Zrobiliśmy to bardzo **dokładnie**.", "przysłówek"], ["**Jutro** zaczynają się ferie.", "przysłówek"], ["Dziadek mówił **cicho** i spokojnie.", "przysłówek"],
-    ["Mam **trzy** koty.", "liczebnik"], ["Skończył bieg jako **drugi**.", "liczebnik"], ["W klasie jest **dwadzieścia** osób.", "liczebnik"], ["Kupiłam **pół** kilograma jabłek.", "liczebnik"], ["Na wycieczkę pojechało **pięcioro** dzieci.", "liczebnik"], ["Zajęliśmy **pierwsze** miejsce.", "liczebnik"], ["Czekaliśmy **kilka** minut.", "liczebnik"], ["Zjadł **półtora** batonika.", "liczebnik"],
-    ["**On** nie lubi szpinaku.", "zaimek"], ["To jest **mój** rower.", "zaimek"], ["**Kto** zjadł ostatnie ciastko?", "zaimek"], ["**Ten** film był świetny.", "zaimek"], ["**Nikt** nie przyszedł na zbiórkę.", "zaimek"], ["Daj **mi** tę książkę.", "zaimek"], ["**Ktoś** zostawił parasol.", "zaimek"], ["**Nasza** drużyna wygrała mecz.", "zaimek"],
-    ["Kot śpi **pod** stołem.", "przyimek"], ["Idziemy **do** szkoły.", "przyimek"], ["Książka leży **na** półce.", "przyimek"], ["Wracam **z** wakacji.", "przyimek"], ["Spotkamy się **przed** kinem.", "przyimek"], ["Mieszkam **obok** parku.", "przyimek"], ["Poszliśmy **nad** jezioro.", "przyimek"], ["Zadanie **dla** ciebie jest łatwe.", "przyimek"],
-    ["Kupiłem chleb **i** masło.", "spójnik"], ["Chciałem wyjść, **ale** padał deszcz.", "spójnik"], ["Pójdziemy do kina **lub** do parku.", "spójnik"], ["Nie przyszedł, **bo** był chory.", "spójnik"], ["Wiem, **że** masz rację.", "spójnik"], ["Zostań w domu, **jeśli** źle się czujesz.", "spójnik"], ["Uczył się pilnie, **więc** zdał egzamin.", "spójnik"], ["Zjedz obiad, **a** potem odrób lekcje.", "spójnik"],
-    ["**Nie** lubię szpinaku.", "partykuła"], ["**Czy** masz czas?", "partykuła"], ["**Niech** on to zrobi.", "partykuła"], ["**Chyba** nie zdążymy.", "partykuła"], ["To **właśnie** on wygrał.", "partykuła"], ["**Tak**, przyjdę jutro.", "partykuła"], ["**Oby** się udało!", "partykuła"], ["**Nawet** nie próbuj.", "partykuła"], ["**Tylko** ty to wiesz.", "partykuła"],
-    ["**Ojej**, zapomniałem zeszytu!", "wykrzyknik"], ["**Hura**, wygraliśmy!", "wykrzyknik"], ["**Brr**, ale zimno!", "wykrzyknik"], ["**Hej**, poczekaj na mnie!", "wykrzyknik"], ["**Ach**, jak tu pięknie!", "wykrzyknik"], ["**Bum**! Coś spadło ze stołu.", "wykrzyknik"], ["**Halo**, czy ktoś mnie słyszy?", "wykrzyknik"], ["**Och**, jak mi przykro.", "wykrzyknik"]
-  ];
-  const SLOWA = { // wyrazy bez kontekstu (jednoznaczne)
-    rzeczownik: ["dom", "nauczyciel", "radość", "jabłko", "Kraków", "pies", "szkoła", "muzyka", "burza", "zeszyt"],
-    czasownik: ["biegać", "czytam", "śpiewali", "zjadł", "pisze", "myśleć", "pojedziemy", "śpi", "gotujecie", "umyj"],
-    przymiotnik: ["zielony", "wysoka", "drewniane", "mądry", "słodka", "ciepłe", "polski", "szybki", "wesoła", "najlepszy"],
-    przysłówek: ["szybko", "wczoraj", "tutaj", "głośno", "wszędzie", "jutro", "cicho", "daleko", "ładnie", "zawsze"],
-    liczebnik: ["pięć", "drugi", "dwadzieścia", "pięcioro", "pół", "pierwszy", "kilka", "setny", "troje", "sto"],
-    zaimek: ["on", "mój", "kto", "ten", "nikt", "ktoś", "nasza", "ja", "taki", "wy"],
-    przyimek: ["pod", "do", "na", "z", "przed", "obok", "nad", "dla", "bez", "przy"],
-    spójnik: ["i", "ale", "lub", "bo", "że", "jeśli", "więc", "oraz", "albo", "ponieważ"],
-    partykuła: ["nie", "czy", "niech", "chyba", "właśnie", "oby", "nawet", "tylko", "no", "przecież"],
-    wykrzyknik: ["ojej", "hura", "brr", "hej", "ach", "bum", "halo", "och", "aha", "hop"]
-  };
-  const optTxt2 = (v) => `<span class="opt-text">${v}</span>`;
-  const zdanie = (q, s) => `${lead(q)}<span class="q-story">${hl(s)}</span>`;
-  const slowo = (q, w) => `${lead(q)}<span class="q-story">„${w}”</span>`;
-
-  function genCzesciMowy(d) {
-    const kind = pick(["czesc", "czesc", "czesc", "pytanie", "odmiana", "ktory-nie", "ktory-nie"]);
-    const r = { cat: "Części mowy" };
-    if (kind === "czesc") { // Jaką częścią mowy jest wyróżniony wyraz?
-      const [s, p] = pick(ZDANIA);
-      r.promptHTML = zdanie("Jaką częścią mowy jest wyróżniony wyraz?", s);
-      r.options = makeOptions(p, pickN(CZM_NAZWY, 3, [p]), optTxt2);
-      r.explain = `„${ktory(s)}” to <b>${p}</b> — ${CZM[p].opis}${CZM[p].pyt.startsWith("(") ? "" : " (pytania: " + CZM[p].pyt + ")"}.`;
-      return r;
-    }
-    if (kind === "pytanie") { // Na jakie pytania odpowiada?
-      const pyt = ["rzeczownik", "czasownik", "przymiotnik", "przysłówek", "liczebnik"];
-      const [s, p] = pick(ZDANIA.filter((z) => pyt.includes(z[1])));
-      r.promptHTML = zdanie("Na jakie pytania odpowiada wyróżniony wyraz?", s);
-      r.options = makeOptions(CZM[p].pyt, pickN(pyt, 3, [p]).map((x) => CZM[x].pyt), optTxt2);
-      r.explain = `„${ktory(s)}” to ${p}, a ${p} odpowiada na pytania <b>${CZM[p].pyt}</b>.`;
-      return r;
-    }
-    if (kind === "odmiana") { // odmienna czy nieodmienna?
-      const [s, p] = pick(ZDANIA);
-      const odp = { przypadki: "odmienna — odmienia się przez przypadki", osoby: "odmienna — odmienia się przez osoby (koniuguje się)", nie: "nieodmienna" };
-      const ok = odp[CZM[p].odm];
-      r.promptHTML = zdanie("Czy wyróżniony wyraz jest odmienny?", s);
-      r.options = makeOptions(ok, Object.values(odp).filter((x) => x !== ok), optTxt2);
-      const wyj = CZM[p].odm === "nie" ? `${p} to nieodmienna część mowy — ma zawsze tę samą formę` : CZM[p].odm === "osoby" ? `czasownik odmienia się przez osoby, liczby, czasy i tryby (czytam, czytasz, czytał…)` : `${p} odmienia się przez przypadki i liczby${p === "przymiotnik" || p === "zaimek" ? " oraz rodzaje" : ""}`;
-      r.explain = `„${ktory(s)}” to ${p}: <b>${ok.split(" — ")[0]}</b>. ${wyj.charAt(0).toUpperCase() + wyj.slice(1)}.`;
-      return r;
-    }
-    // ktory-nie: który wyraz NIE jest …?
-    const p = pick(CZM_NAZWY), inne = pick(CZM_NAZWY.filter((x) => x !== p));
-    const swoje = pickN(SLOWA[p], 3), obcy = pick(SLOWA[inne]);
-    r.promptHTML = `${lead(`Który wyraz NIE jest ${p === "rzeczownik" ? "rzeczownikiem" : p === "czasownik" ? "czasownikiem" : p === "przymiotnik" ? "przymiotnikiem" : p === "przysłówek" ? "przysłówkiem" : p === "liczebnik" ? "liczebnikiem" : p === "zaimek" ? "zaimkiem" : p === "przyimek" ? "przyimkiem" : p === "spójnik" ? "spójnikiem" : p === "partykuła" ? "partykułą" : "wykrzyknikiem"}?`)}<span class="q-set q-story">${swoje.concat(obcy).sort(() => Math.random() - 0.5).join(" · ")}</span>`;
-    r.options = makeOptions(obcy, swoje, optTxt2);
-    r.explain = `${swoje.join(", ")} to ${p === "partykuła" ? "partykuły" : p === "zaimek" ? "zaimki" : p === "spójnik" ? "spójniki" : p === "przyimek" ? "przyimki" : p === "przysłówek" ? "przysłówki" : p === "liczebnik" ? "liczebniki" : p === "przymiotnik" ? "przymiotniki" : p === "czasownik" ? "czasowniki" : p === "wykrzyknik" ? "wykrzykniki" : "rzeczowniki"}, a „<b>${obcy}</b>” to ${inne} — ${CZM[inne].opis}.`;
-    return r;
-  }
-
-  // --- RZECZOWNIK ---
-  const PRZYPADKI = [["mianownik", "kto? co?"], ["dopełniacz", "kogo? czego?"], ["celownik", "komu? czemu?"], ["biernik", "kogo? co?"], ["narzędnik", "(z) kim? (z) czym?"], ["miejscownik", "(o) kim? (o) czym?"], ["wołacz", "o!"]];
-  const PRZYP_ZDANIA = [
-    ["**Kot** śpi na kanapie.", 0], ["**Mama** wróciła z pracy.", 0], ["Na drzewie siedzi **wrona**.", 0],
-    ["Nie ma tu **chleba**.", 1], ["Szukam **klucza**.", 1], ["Wróciłem ze **szkoły**.", 1], ["To zeszyt **Ani**.", 1],
-    ["Dałem prezent **bratu**.", 2], ["Przyglądam się **ptakom**.", 2], ["Pomogłem **koleżance**.", 2],
-    ["Widzę **samochód**.", 3], ["Kupiłam **sukienkę**.", 3], ["Czytam **książkę**.", 3],
-    ["Jadę **pociągiem**.", 4], ["Rozmawiam z **tatą**.", 4], ["Piszę **długopisem**.", 4],
-    ["Myślę o **wakacjach**.", 5], ["Mieszkam w **Krakowie**.", 5], ["Rozmawiamy o **filmie**.", 5],
-    ["**Mamo**, chodź tutaj!", 6], ["**Piotrze**, uważaj!", 6], ["**Kotku**, chodź do mnie!", 6]
-  ];
-  const RODZAJ = { męski: ["stół", "kot", "nauczyciel", "dom", "rower", "ogień", "koń", "chłopiec"], żeński: ["książka", "mysz", "noc", "pani", "sól", "szkoła", "radość", "kość"], nijaki: ["okno", "dziecko", "imię", "muzeum", "morze", "cielę", "pole", "zdjęcie"] };
-  const LICZBA_MN = [["człowiek", "ludzie", ["człowieki", "człowiekowie", "człowiecy"]], ["rok", "lata", ["roki", "roky", "rokowie"]], ["oko", "oczy", ["oka", "okna", "oczka"]], ["ręka", "ręce", ["ręki", "ręky", "rękowie"]], ["dziecko", "dzieci", ["dziecka", "dziecki", "dzieckowie"]], ["brat", "bracia", ["braty", "bratowie", "braci"]], ["przyjaciel", "przyjaciele", ["przyjaciely", "przyjacielowie", "przyjacieli"]], ["ucho", "uszy", ["ucha", "uchy", "uszki"]], ["ksiądz", "księża", ["ksiądze", "księdzy", "ksiądzowie"]], ["imię", "imiona", ["imięta", "imie", "imiony"]], ["muzeum", "muzea", ["muzeumy", "muzeumów", "muzei"]], ["zwierzę", "zwierzęta", ["zwierzęcia", "zwierzę", "zwierzęty"]]];
-  const WIELKA = [["latem pojedziemy nad bałtyk", "bałtyk"], ["moja siostra ania lubi czytać", "ania"], ["w tatrach spadł pierwszy śnieg", "tatrach"], ["wisła to najdłuższa rzeka w kraju", "wisła"], ["mój pies burek uciekł z ogrodu", "burek"], ["wakacje spędziliśmy w hiszpanii", "hiszpanii"], ["najwyższa góra w kraju to rysy", "rysy"], ["nasz sąsiad pan kowalski ma ogród", "kowalski"], ["marek dostał piątkę z matematyki", "marek"], ["w niedzielę jedziemy do gdańska", "gdańska"]];
-
-  function genRzeczownik(d) {
-    const kind = pick(["przypadek", "przypadek", "pytania", "rodzaj", "liczba", "wielka"]);
-    const r = { cat: "Rzeczownik" };
-    if (kind === "przypadek") {
-      const [s, c] = pick(PRZYP_ZDANIA);
-      r.promptHTML = zdanie("W jakim przypadku jest wyróżniony rzeczownik?", s);
-      r.options = makeOptions(PRZYPADKI[c][0], pickN(PRZYPADKI.map((p) => p[0]), 3, [PRZYPADKI[c][0]]), optTxt2);
-      r.explain = `Pytamy: ${PRZYPADKI[c][1]} — „${ktory(s)}”. To <b>${PRZYPADKI[c][0]}</b>.`;
-      return r;
-    }
-    if (kind === "pytania") {
-      const [n, q] = pick(PRZYPADKI.slice(0, 6));
-      if (Math.random() < 0.5) {
-        r.promptHTML = `${lead("Na jakie pytania odpowiada")}<span class="q-story">${n}</span>`;
-        r.options = makeOptions(q, pickN(PRZYPADKI.slice(0, 6).map((p) => p[1]), 3, [q]), optTxt2);
-      } else {
-        r.promptHTML = `${lead("Który przypadek odpowiada na pytania")}<span class="q-story">${q}</span>`;
-        r.options = makeOptions(n, pickN(PRZYPADKI.slice(0, 6).map((p) => p[0]), 3, [n]), optTxt2);
-      }
-      r.explain = `<b>${n.charAt(0).toUpperCase() + n.slice(1)}</b> — ${q}. Kolejność przypadków: mianownik, dopełniacz, celownik, biernik, narzędnik, miejscownik, wołacz.`;
-      return r;
-    }
-    if (kind === "rodzaj") {
-      const rod = pick(Object.keys(RODZAJ)), w = pick(RODZAJ[rod]);
-      const zaim = { męski: "ten", żeński: "ta", nijaki: "to" };
-      r.promptHTML = slowo("Jakiego rodzaju jest rzeczownik?", w);
-      r.options = makeOptions(rod, Object.keys(RODZAJ).filter((x) => x !== rod), optTxt2);
-      r.explain = `Mówimy „${zaim[rod]} ${w}”, więc to rodzaj <b>${rod}</b> (ten — męski, ta — żeński, to — nijaki).`;
-      return r;
-    }
-    if (kind === "liczba") {
-      const [lp, lm, zle] = pick(LICZBA_MN);
-      r.promptHTML = slowo("Jaka jest liczba mnoga rzeczownika?", lp);
-      r.options = makeOptions(lm, zle, optTxt2);
-      r.explain = `Jeden ${lp}, ale wiele — <b>${lm}</b>. To nieregularna liczba mnoga, trzeba ją zapamiętać.`;
-      return r;
-    }
-    const [s, w] = pick(WIELKA);
-    const inne = pickN(s.split(" ").filter((x) => x !== w && x.length > 2), 3);
-    r.promptHTML = `${lead("Który wyraz należy napisać wielką literą?")}<span class="q-story">${s}.</span>`;
-    r.options = makeOptions(w, inne, optTxt2);
-    r.explain = `„<b>${w.charAt(0).toUpperCase() + w.slice(1)}</b>” to nazwa własna (imię, nazwisko, nazwa geograficzna) — piszemy ją wielką literą. Pozostałe to rzeczowniki pospolite.`;
-    return r;
-  }
-
-  // --- CZASOWNIK ---
-  const FORMY = [ // [forma, osoba, liczba, czas, zaimek]
-    ["czytam", 1, "pojedyncza", "teraźniejszy", "ja"], ["czytasz", 2, "pojedyncza", "teraźniejszy", "ty"], ["czyta", 3, "pojedyncza", "teraźniejszy", "on"], ["czytamy", 1, "mnoga", "teraźniejszy", "my"], ["czytacie", 2, "mnoga", "teraźniejszy", "wy"], ["czytają", 3, "mnoga", "teraźniejszy", "oni"],
-    ["pisałem", 1, "pojedyncza", "przeszły", "ja"], ["pisałaś", 2, "pojedyncza", "przeszły", "ty"], ["pisała", 3, "pojedyncza", "przeszły", "ona"], ["pisaliśmy", 1, "mnoga", "przeszły", "my"], ["pisaliście", 2, "mnoga", "przeszły", "wy"], ["pisali", 3, "mnoga", "przeszły", "oni"],
-    ["zrobię", 1, "pojedyncza", "przyszły", "ja"], ["zrobisz", 2, "pojedyncza", "przyszły", "ty"], ["zrobi", 3, "pojedyncza", "przyszły", "on"], ["zrobimy", 1, "mnoga", "przyszły", "my"], ["zrobicie", 2, "mnoga", "przyszły", "wy"], ["zrobią", 3, "mnoga", "przyszły", "oni"],
-    ["będę grać", 1, "pojedyncza", "przyszły", "ja"], ["będziesz grać", 2, "pojedyncza", "przyszły", "ty"], ["będzie grać", 3, "pojedyncza", "przyszły", "ona"], ["będziemy grać", 1, "mnoga", "przyszły", "my"], ["będziecie grać", 2, "mnoga", "przyszły", "wy"], ["będą grać", 3, "mnoga", "przyszły", "one"],
-    ["gotujecie", 2, "mnoga", "teraźniejszy", "wy"], ["śpiewała", 3, "pojedyncza", "przeszły", "ona"], ["pojadą", 3, "mnoga", "przyszły", "oni"], ["malowaliśmy", 1, "mnoga", "przeszły", "my"], ["biegniesz", 2, "pojedyncza", "teraźniejszy", "ty"], ["myślą", 3, "mnoga", "teraźniejszy", "oni"], ["spałam", 1, "pojedyncza", "przeszły", "ja"], ["kupicie", 2, "mnoga", "przyszły", "wy"]
-  ];
-  const ASPEKT = [["pisać", "napisać"], ["czytać", "przeczytać"], ["robić", "zrobić"], ["jeść", "zjeść"], ["budować", "zbudować"], ["malować", "pomalować"], ["kupować", "kupić"], ["dawać", "dać"], ["mówić", "powiedzieć"], ["brać", "wziąć"], ["otwierać", "otworzyć"], ["sprzątać", "posprzątać"], ["gotować", "ugotować"], ["myć", "umyć"], ["uczyć się", "nauczyć się"]];
-  const TRYBY = [["czytam", "oznajmujący"], ["poszliśmy", "oznajmujący"], ["napisze", "oznajmujący"], ["gotujecie", "oznajmujący"], ["czytaj!", "rozkazujący"], ["chodźmy!", "rozkazujący"], ["niech przyjdzie", "rozkazujący"], ["umyjcie ręce!", "rozkazujący"], ["czytałbym", "przypuszczający"], ["poszlibyśmy", "przypuszczający"], ["zrobiłabyś", "przypuszczający"], ["chcieliby", "przypuszczający"]];
-  const OS = { 1: "1. osoba", 2: "2. osoba", 3: "3. osoba" };
-  const BEZOKOL = [["czytać", ["czytam", "czytał", "czytaj!"]], ["pisać", ["piszę", "pisała", "pisz!"]], ["jeść", ["jem", "jadł", "jedz!"]], ["robić", ["robię", "robili", "rób!"]], ["iść", ["idę", "szedł", "idź!"]], ["spać", ["śpię", "spała", "śpij!"]], ["mówić", ["mówię", "mówił", "mów!"]], ["brać", ["biorę", "brała", "bierz!"]], ["piec", ["piekę", "piekł", "piecz!"]], ["móc", ["mogę", "mógł", "mogli"]], ["biec", ["biegnę", "biegł", "biegnij!"]], ["strzec", ["strzegę", "strzegł", "strzeż!"]]];
-
-  function genCzasownik(d) {
-    const kind = pick(["osoba", "liczba", "czas", "czas", "aspekt", "aspekt2", "tryb", "bezokolicznik"]);
-    const r = { cat: "Czasownik" };
-    if (kind === "osoba" || kind === "liczba" || kind === "czas") {
-      const [f, o, l, c, z] = pick(FORMY);
-      const q = kind === "osoba" ? "W której osobie jest czasownik?" : kind === "liczba" ? "W jakiej liczbie jest czasownik?" : "W jakim czasie jest czasownik?";
-      const ok = kind === "osoba" ? OS[o] : kind === "liczba" ? l : c;
-      const all = kind === "osoba" ? Object.values(OS) : kind === "liczba" ? ["pojedyncza", "mnoga"] : ["teraźniejszy", "przeszły", "przyszły"];
-      r.promptHTML = slowo(q, f);
-      r.options = makeOptions(ok, all.filter((x) => x !== ok), optTxt2);
-      r.explain = `(${z}) ${f} — ${OS[o]}, liczba ${l}, czas ${c}. Odpowiedź: <b>${ok}</b>.`;
-      return r;
-    }
-    if (kind === "aspekt") {
-      const dok = Math.random() < 0.5;
-      const pary = pickN(ASPEKT, 4);
-      const ok = pary[0][dok ? 1 : 0], zle = pary.slice(1).map((p) => p[dok ? 0 : 1]);
-      r.promptHTML = `${lead(`Który czasownik jest ${dok ? "dokonany" : "niedokonany"}?`)}<span class="q-set q-story">${shuffle([ok].concat(zle)).join(" · ")}</span>`;
-      r.options = makeOptions(ok, zle, optTxt2);
-      r.explain = `<b>${ok}</b> — czasownik ${dok ? "dokonany: czynność zakończona, ma tylko czas przeszły i przyszły (co zrobić?)" : "niedokonany: czynność trwa lub się powtarza, ma czas teraźniejszy (co robić?)"}. Pary: ${pary.map((p) => p[0] + " → " + p[1]).join(", ")}.`;
-      return r;
-    }
-    if (kind === "aspekt2") {
-      const [nd, dk] = pick(ASPEKT);
-      r.promptHTML = slowo("Podaj czasownik dokonany utworzony od", nd);
-      r.options = makeOptions(dk, [nd, "będę " + nd, nd.replace(/ć$/, "łem").replace(/ się$/, "")], optTxt2);
-      r.explain = `${nd} (co robić?) → <b>${dk}</b> (co zrobić?). Czasownik dokonany nazywa czynność zakończoną. „będę ${nd}” to czas przyszły, ale nadal niedokonany.`;
-      return r;
-    }
-    if (kind === "tryb") {
-      const [f, t] = pick(TRYBY);
-      r.promptHTML = slowo("W jakim trybie jest czasownik?", f);
-      r.options = makeOptions(t, ["oznajmujący", "rozkazujący", "przypuszczający"].filter((x) => x !== t), optTxt2);
-      const op = { oznajmujący: "informuje, że coś się dzieje, działo lub będzie działo", rozkazujący: "wyraża rozkaz, prośbę lub zachętę (czytaj!, chodźmy!, niech przyjdzie)", przypuszczający: "wyraża przypuszczenie lub warunek, ma cząstkę „by” (czytałbym, poszlibyśmy)" };
-      r.explain = `„${f}” — tryb <b>${t}</b>: ${op[t]}.`;
-      return r;
-    }
-    const [bez, inne] = pick(BEZOKOL);
-    r.promptHTML = `${lead("Która forma to bezokolicznik?")}<span class="q-set q-story">${shuffle([bez].concat(inne)).join(" · ")}</span>`;
-    r.options = makeOptions(bez, inne, optTxt2);
-    r.explain = `Bezokolicznik to forma zakończona na -ć lub -c, która nie wskazuje osoby, liczby ani czasu: <b>${bez}</b>. Pozostałe to formy osobowe lub tryb rozkazujący.`;
-    return r;
-  }
-
-  // --- PRZYMIOTNIK I PRZYSŁÓWEK ---
-  const STOPNIE = [ // [równy, wyższy, najwyższy, typ, błędna forma]
-    ["wysoki", "wyższy", "najwyższy", "proste", "bardziej wysoki"], ["niski", "niższy", "najniższy", "proste", "niskszy"], ["ciepły", "cieplejszy", "najcieplejszy", "proste", "bardziej ciepły"], ["długi", "dłuższy", "najdłuższy", "proste", "długszy"], ["szybki", "szybszy", "najszybszy", "proste", "bardziej szybki"], ["młody", "młodszy", "najmłodszy", "proste", "młodziejszy"], ["stary", "starszy", "najstarszy", "proste", "starzejszy"], ["tani", "tańszy", "najtańszy", "proste", "tanszy"], ["drogi", "droższy", "najdroższy", "proste", "drogszy"], ["lekki", "lżejszy", "najlżejszy", "proste", "lekkszy"], ["ciężki", "cięższy", "najcięższy", "proste", "ciężkszy"], ["miły", "milszy", "najmilszy", "proste", "bardziej miły"], ["ładny", "ładniejszy", "najładniejszy", "proste", "ładnszy"], ["mądry", "mądrzejszy", "najmądrzejszy", "proste", "mądrszy"], ["słodki", "słodszy", "najsłodszy", "proste", "słodkszy"], ["wąski", "węższy", "najwęższy", "proste", "wąskszy"], ["gorący", "gorętszy", "najgorętszy", "proste", "bardziej gorący"],
-    ["dobry", "lepszy", "najlepszy", "nieregularne", "dobrszy"], ["zły", "gorszy", "najgorszy", "nieregularne", "zlejszy"], ["duży", "większy", "największy", "nieregularne", "dużejszy"], ["mały", "mniejszy", "najmniejszy", "nieregularne", "malszy"],
-    ["interesujący", "bardziej interesujący", "najbardziej interesujący", "opisowe", "interesującszy"], ["kolorowy", "bardziej kolorowy", "najbardziej kolorowy", "opisowe", "kolorowszy"], ["zmęczony", "bardziej zmęczony", "najbardziej zmęczony", "opisowe", "zmęczeńszy"], ["skomplikowany", "bardziej skomplikowany", "najbardziej skomplikowany", "opisowe", "skomplikowańszy"], ["znany", "bardziej znany", "najbardziej znany", "opisowe", "znańszy"], ["zadowolony", "bardziej zadowolony", "najbardziej zadowolony", "opisowe", "zadowoleńszy"]
-  ];
-  const PRZYSL = [ // [przymiotnik, przysłówek, błędne]
-    ["szybki", "szybko", ["szybkie", "szybkiej", "szybciej"]], ["głośny", "głośno", ["głośnie", "głośnej", "głośniej"]], ["ładny", "ładnie", ["ładno", "ładnej", "ładniej"]], ["dobry", "dobrze", ["dobro", "dobrzo", "lepiej"]], ["zły", "źle", ["zło", "źli", "gorzej"]], ["mądry", "mądrze", ["mądro", "mądrej", "mądrzej"]], ["cichy", "cicho", ["cichie", "cichej", "ciszej"]], ["wysoki", "wysoko", ["wysokie", "wysokiej", "wyżej"]], ["ciepły", "ciepło", ["cieple", "ciepłej", "cieplej"]], ["wesoły", "wesoło", ["wesołe", "wesołej", "weselej"]], ["tani", "tanio", ["tanie", "taniej", "tanio-"]], ["miły", "miło", ["mile", "miłej", "milej"]], ["lekki", "lekko", ["lekkie", "lekkiej", "lżej"]], ["ciężki", "ciężko", ["ciężkie", "ciężkiej", "ciężej"]]
-  ];
-  const PRZYSL_ST = [["szybko", "szybciej", "najszybciej", "bardziej szybko"], ["dobrze", "lepiej", "najlepiej", "dobrzej"], ["źle", "gorzej", "najgorzej", "źlej"], ["głośno", "głośniej", "najgłośniej", "bardziej głośno"], ["dużo", "więcej", "najwięcej", "dużej"], ["mało", "mniej", "najmniej", "malej"], ["ciepło", "cieplej", "najcieplej", "ciepłej"], ["wysoko", "wyżej", "najwyżej", "wysoczej"], ["blisko", "bliżej", "najbliżej", "bliskiej"], ["daleko", "dalej", "najdalej", "dalekiej"], ["długo", "dłużej", "najdłużej", "długiej"]];
-  const PP_ZDANIA = [["Ania jest **szybka**.", "przymiotnik"], ["Ania biega **szybko**.", "przysłówek"], ["To **głośny** silnik.", "przymiotnik"], ["Silnik pracuje **głośno**.", "przysłówek"], ["Dziś jest **ciepły** dzień.", "przymiotnik"], ["Dziś jest **ciepło**.", "przysłówek"], ["Ola ma **ładny** rower.", "przymiotnik"], ["Ola **ładnie** śpiewa.", "przysłówek"], ["**Wesołe** dzieci biegały po boisku.", "przymiotnik"], ["Dzieci **wesoło** biegały po boisku.", "przysłówek"], ["W pokoju panował **cichy** szmer.", "przymiotnik"], ["Mów **cicho**, dziecko śpi.", "przysłówek"]];
-
-  function genPrzymiotnik(d) {
-    const kind = pick(["wyzszy", "najwyzszy", "stopien", "typ", "przyslowek", "przyslowek", "ktory", "przysl-st"]);
-    const r = { cat: "Przymiotnik i przysłówek" };
-    if (kind === "wyzszy" || kind === "najwyzszy") {
-      const [r0, r1, r2, typ, zla] = pick(STOPNIE);
-      const ok = kind === "wyzszy" ? r1 : r2;
-      const zle = uniq([kind === "wyzszy" ? r2 : r1, r0, zla, typ === "opisowe" ? (kind === "wyzszy" ? "naj" + r0 : "najbardziej " + r1) : "bardziej " + r0]).filter((x) => x !== ok);
-      r.promptHTML = slowo(`Podaj stopień ${kind === "wyzszy" ? "wyższy" : "najwyższy"} przymiotnika`, r0);
-      r.options = makeOptions(ok, zle, optTxt2);
-      r.explain = `${r0} → ${r1} → ${r2}. Stopniowanie ${typ}${typ === "opisowe" ? " (bardziej / najbardziej)" : typ === "nieregularne" ? " (inny wyraz — trzeba zapamiętać)" : " (przyrostek -szy / -ejszy, przedrostek naj-)"}. Odpowiedź: <b>${ok}</b>.`;
-      return r;
-    }
-    if (kind === "stopien") {
-      const st = pick(STOPNIE), i = rint(0, 2), nazwy = ["równy", "wyższy", "najwyższy"];
-      r.promptHTML = slowo("W jakim stopniu jest ten przymiotnik?", st[i]);
-      r.options = makeOptions(nazwy[i], nazwy.filter((x) => x !== nazwy[i]), optTxt2);
-      r.explain = `${st[0]} (równy) → ${st[1]} (wyższy) → ${st[2]} (najwyższy). „${st[i]}” to stopień <b>${nazwy[i]}</b>.`;
-      return r;
-    }
-    if (kind === "typ") {
-      const st = pick(STOPNIE), nazwy = { proste: "proste (przyrostek -szy / -ejszy)", opisowe: "opisowe (bardziej, najbardziej)", nieregularne: "nieregularne (inny wyraz)" };
-      r.promptHTML = slowo("Jak stopniuje się przymiotnik?", st[0]);
-      r.options = makeOptions(nazwy[st[3]], Object.values(nazwy).filter((x) => x !== nazwy[st[3]]), optTxt2);
-      r.explain = `${st[0]} → ${st[1]} → ${st[2]}, czyli stopniowanie <b>${st[3]}</b>.`;
-      return r;
-    }
-    if (kind === "przyslowek") {
-      const [pm, ps, zle] = pick(PRZYSL);
-      r.promptHTML = slowo("Jaki przysłówek tworzymy od przymiotnika?", pm);
-      r.options = makeOptions(ps, zle.filter((x) => !x.endsWith("-")), optTxt2);
-      r.explain = `${pm} (jaki?) → <b>${ps}</b> (jak?). Przysłówki od przymiotników tworzymy zwykle końcówką -o lub -e.`;
-      return r;
-    }
-    if (kind === "ktory") {
-      const [s, p] = pick(PP_ZDANIA);
-      r.promptHTML = zdanie("Przymiotnik czy przysłówek?", s);
-      r.options = makeOptions(p, ["przymiotnik", "przysłówek"].filter((x) => x !== p), optTxt2);
-      r.explain = `„${ktory(s)}” to <b>${p}</b>: ${p === "przymiotnik" ? "określa rzeczownik i odpowiada na pytanie jaki? jaka? jakie?" : "określa czasownik i odpowiada na pytanie jak?"}.`;
-      return r;
-    }
-    const [p0, p1, p2, zla] = pick(PRZYSL_ST), wy = Math.random() < 0.5;
-    r.promptHTML = slowo(`Podaj stopień ${wy ? "wyższy" : "najwyższy"} przysłówka`, p0);
-    r.options = makeOptions(wy ? p1 : p2, [wy ? p2 : p1, p0, zla].filter((x) => x !== (wy ? p1 : p2)), optTxt2);
-    r.explain = `Przysłówki też się stopniują: ${p0} → ${p1} → ${p2}. Odpowiedź: <b>${wy ? p1 : p2}</b>.`;
-    return r;
-  }
-
-  // --- LICZEBNIK I ZAIMEK ---
-  const LICZEBNIKI = { główny: ["dwa", "pięć", "dziesięć", "sto", "tysiąc", "dwadzieścia trzy", "siedem"], porządkowy: ["pierwszy", "piąty", "dziesiąty", "setny", "dwudziesty", "trzecia", "ósme"], zbiorowy: ["dwoje", "troje", "pięcioro", "dziesięcioro", "czworo", "sześcioro"], ułamkowy: ["pół", "półtora", "ćwierć", "jedna trzecia", "dwie piąte"], nieokreślony: ["kilka", "kilkanaście", "wiele", "parę", "kilkadziesiąt", "kilkaset"] };
-  const LICZ_OPIS = { główny: "odpowiada na pytanie ile? (dwa, pięć)", porządkowy: "odpowiada na pytanie który z kolei? (pierwszy, piąty)", zbiorowy: "używany z nazwami dzieci, młodych zwierząt, grup mieszanych i rzeczy występujących parami (troje dzieci, dwoje drzwi)", ułamkowy: "oznacza część całości (pół, półtora, ćwierć)", nieokreślony: "podaje liczbę w przybliżeniu (kilka, wiele)" };
-  const LICZ_UZUP = [["dzieci", "troje", ["trzy", "trzech", "trzecie"]], ["kociąt", "czworo", ["cztery", "czterech", "czwarte"]], ["chłopców", "trzech", ["troje", "trzy", "trzecich"]], ["dziewczynek", "trzy", ["troje", "trzech", "trzecie"]], ["drzwi", "dwoje", ["dwa", "dwie", "dwóch"]], ["skrzypiec", "dwoje", ["dwa", "dwie", "dwóch"]], ["okien", "pięć", ["pięcioro", "pięciu", "piąte"]], ["uczniów", "pięciu", ["pięć", "pięcioro", "piąci"]], ["kurcząt", "pięcioro", ["pięć", "pięciu", "piąte"]], ["kobiet", "sześć", ["sześcioro", "sześciu", "szóste"]]];
-  const ZAIMKI = { osobowy: ["ja", "ty", "on", "ona", "my", "wy", "oni", "mnie", "tobie", "nam"], dzierżawczy: ["mój", "twój", "nasz", "wasz", "swój", "moja", "twoje", "nasze"], wskazujący: ["ten", "ta", "tamten", "taki", "tamta", "ów"], pytający: ["kto", "co", "jaki", "który", "czyj", "ile", "gdzie", "kiedy"], nieokreślony: ["ktoś", "coś", "jakiś", "gdzieś", "kiedyś", "którykolwiek", "cokolwiek"], przeczący: ["nikt", "nic", "nigdzie", "nigdy", "żaden", "niczyj"], zwrotny: ["się", "siebie", "sobie", "sobą"] };
-  const ZAIM_CZESC = { rzeczownik: ["on", "ona", "my", "ktoś", "nikt", "nic", "kto", "co", "się", "ja"], przymiotnik: ["mój", "twój", "ten", "taki", "jaki", "który", "żaden", "czyj", "nasz", "jakiś"], liczebnik: ["ile", "tyle", "kilka", "wiele", "ileś"], przysłówek: ["tu", "tam", "gdzie", "kiedy", "nigdy", "nigdzie", "gdzieś", "wtedy", "tędy", "stąd"] };
-  const ZASTAP = [["Ania czyta książkę.", "Ania", "Ona", ["On", "Ono", "Oni"]], ["Tomek gra w piłkę.", "Tomek", "On", ["Ona", "Ono", "One"]], ["Dzieci bawią się w ogrodzie.", "Dzieci", "One", ["Oni", "Ono", "Ona"]], ["Rodzice wrócili z pracy.", "Rodzice", "Oni", ["One", "On", "Ona"]], ["Dziecko śpi w wózku.", "Dziecko", "Ono", ["On", "Ona", "One"]], ["Koty śpią na kanapie.", "Koty", "One", ["Oni", "Ono", "On"]], ["Nauczyciele przyszli na zebranie.", "Nauczyciele", "Oni", ["One", "On", "Ona"]], ["Mama i tata pojechali na zakupy.", "Mama i tata", "Oni", ["One", "Ona", "On"]], ["Uczennice zdały egzamin.", "Uczennice", "One", ["Oni", "Ona", "On"]]];
-
-  function genLiczebnik(d) {
-    const kind = pick(["licz-typ", "licz-typ", "licz-uzup", "zaim-typ", "zaim-typ", "zaim-czesc", "zastap"]);
-    const r = { cat: "Liczebnik i zaimek" };
-    if (kind === "licz-typ") {
-      const t = pick(Object.keys(LICZEBNIKI)), w = pick(LICZEBNIKI[t]);
-      r.promptHTML = slowo("Jaki to liczebnik?", w);
-      r.options = makeOptions(t, pickN(Object.keys(LICZEBNIKI), 3, [t]), optTxt2);
-      r.explain = `„${w}” to liczebnik <b>${t}</b> — ${LICZ_OPIS[t]}.`;
-      return r;
-    }
-    if (kind === "licz-uzup") {
-      const [n, ok, zle] = pick(LICZ_UZUP);
-      r.promptHTML = `${lead("Który liczebnik pasuje?")}<span class="q-story">${hole} ${n}</span>`;
-      r.options = makeOptions(ok, zle, optTxt2);
-      r.explain = `Poprawnie: <b>${ok} ${n}</b>. ${["dzieci", "kociąt", "kurcząt"].includes(n) ? "Z nazwami dzieci i młodych zwierząt używamy liczebników zbiorowych (troje, czworo, pięcioro)." : ["drzwi", "skrzypiec"].includes(n) ? "Z rzeczownikami, które mają tylko liczbę mnogą (drzwi, skrzypce), używamy liczebników zbiorowych (dwoje drzwi)." : ["chłopców", "uczniów"].includes(n) ? "Z rzeczownikami męskoosobowymi liczebnik główny ma formę: trzech, pięciu (trzech chłopców)." : "Z rzeczownikami żeńskimi i nieżywotnymi liczebnik główny ma zwykłą formę: trzy dziewczynki, pięć okien."}`;
-      return r;
-    }
-    if (kind === "zaim-typ") {
-      const t = pick(Object.keys(ZAIMKI)), w = pick(ZAIMKI[t]);
-      const op = { osobowy: "wskazuje osobę mówiącą, słuchającą lub tę, o której mowa (ja, ty, on)", dzierżawczy: "mówi, do kogo coś należy (mój, twój, nasz)", wskazujący: "wskazuje na kogoś lub coś (ten, tamten, taki)", pytający: "służy do zadawania pytań (kto? jaki? gdzie?)", nieokreślony: "nie wskazuje dokładnie (ktoś, jakiś, gdzieś)", przeczący: "zaprzecza (nikt, nic, nigdy)", zwrotny: "wskazuje, że czynność dotyczy wykonawcy (się, siebie, sobie)" };
-      r.promptHTML = slowo("Jaki to zaimek?", w);
-      r.options = makeOptions(t, pickN(Object.keys(ZAIMKI), 3, [t]), optTxt2);
-      r.explain = `„${w}” to zaimek <b>${t}</b> — ${op[t]}.`;
-      return r;
-    }
-    if (kind === "zaim-czesc") {
-      const t = pick(Object.keys(ZAIM_CZESC)), w = pick(ZAIM_CZESC[t]);
-      r.promptHTML = slowo("Jaką część mowy zastępuje ten zaimek?", w);
-      r.options = makeOptions(t, Object.keys(ZAIM_CZESC).filter((x) => x !== t), optTxt2);
-      const naz = { rzeczownik: "rzeczowny", przymiotnik: "przymiotny", liczebnik: "liczebny", przysłówek: "przysłowny" };
-      r.explain = `„${w}” zastępuje <b>${t}</b>, więc to zaimek ${naz[t]}. ${t === "przysłówek" ? "Odpowiada na pytania jak? gdzie? kiedy?" : t === "liczebnik" ? "Odpowiada na pytanie ile?" : t === "przymiotnik" ? "Odpowiada na pytania jaki? który? czyj?" : "Odpowiada na pytania kto? co?"}`;
-      return r;
-    }
-    const [s, w, ok, zle] = pick(ZASTAP);
-    r.promptHTML = zdanie("Zastąp wyróżniony wyraz zaimkiem", s.replace(w, `**${w}**`));
-    r.options = makeOptions(ok, zle, optTxt2);
-    r.explain = `${s.replace(w, ok)} — <b>${ok}</b>. ${ok === "Oni" ? "„Oni” to rodzaj męskoosobowy (grupa, w której jest choć jeden mężczyzna lub chłopiec)." : ok === "One" ? "„One” to rodzaj niemęskoosobowy (kobiety, dzieci, zwierzęta, rzeczy)." : ok === "Ono" ? "„Ono” zastępuje rzeczownik rodzaju nijakiego (to dziecko)." : ok === "Ona" ? "„Ona” zastępuje rzeczownik rodzaju żeńskiego." : "„On” zastępuje rzeczownik rodzaju męskiego."}`;
-    return r;
-  }
-
-  const POL_CATS = [
-    { key: "p_czm", name: "Części mowy", icon: "🔤", fn: genCzesciMowy },
-    { key: "p_rzecz", name: "Rzeczownik", icon: "🏠", fn: genRzeczownik },
-    { key: "p_czas", name: "Czasownik", icon: "🏃", fn: genCzasownik },
-    { key: "p_przym", name: "Przymiotnik i przysłówek", icon: "🎨", fn: genPrzymiotnik },
-    { key: "p_licz", name: "Liczebnik i zaimek", icon: "🔢", fn: genLiczebnik }
-  ];
-
-  // --- MATEMATYKA: działy z generatorami zadań ---
-  const MATH_CATS = [
-    { key: "aryt", name: "Działania", icon: "➕", fn: genAryt },
-    { key: "kol", name: "Kolejność", icon: "🔢", fn: genKolejnosc },
-    { key: "pot", name: "Potęgi", icon: "xⁿ", fn: genPotega },
-    { key: "dzies", name: "Dziesiętne", icon: "0,5", fn: genDziesietne },
-    { key: "proc", name: "Procenty", icon: "％", fn: genProcent },
-    { key: "ulam", name: "Ułamki", icon: "½", fn: genUlamek },
-    { key: "geom", name: "Geometria", icon: "📐", fn: genGeom },
-    { key: "alg", name: "Algebra", icon: "🅧", fn: genRownania }
-  ];
-
-  // --- HISTORIA: banki pytań (poziom klasy 5-6) ---
-  const HIST_CATS = [
-    { key: "h_star", name: "Starożytność", icon: "🏛️", bank: [
-      { q: "Według legendy założycieli Rzymu wykarmiła wilczyca. Jak nazywali się ci bracia?", opts: ["Kastor i Polluks", "Romulus i Remus", "Hektor i Parys", "Ikar i Dedal"], ci: 1, e: "Romulus i Remus — Romulus dał potem miastu swoje imię: Roma." },
-      { q: "Grecki historyk nazwał Egipt darem pewnej rzeki, bo jej wylewy użyźniały pola. Której?", opts: ["Nilu", "Eufratu", "Tygrysu", "Gangesu"], ci: 0, e: "Nilu — po każdym wylewie zostawiał na polach żyzny muł, dzięki któremu Egipt kwitł na pustyni." },
-      { q: "Który z siedmiu cudów starożytnego świata można oglądać do dziś?", opts: ["wiszące ogrody Babilonu", "kolos rodyjski", "piramidy w Gizie", "latarnię na Faros"], ci: 2, e: "Tylko piramidy w Gizie przetrwały — piramida Cheopsa była najwyższą budowlą świata przez prawie 4000 lat!" },
-      { q: "Egipskie pismo obrazkowe, odczytane dopiero dzięki kamieniowi z Rosetty, to...", opts: ["runy", "hieroglify", "pismo klinowe", "alfabet grecki"], ci: 1, e: "Hieroglify — rozszyfrował je Francuz Champollion dopiero w XIX wieku; wcześniej przez stulecia nikt nie umiał ich czytać." },
-      { q: "Z łodyg jakiej rośliny Egipcjanie wytwarzali materiał do pisania?", opts: ["papirusu", "bambusa", "trzciny cukrowej", "lnu"], ci: 0, e: "Papirusu — od jego nazwy pochodzi nasze słowo papier." },
-      { q: "W którym greckim mieście-państwie narodziła się demokracja, czyli rządy ludu?", opts: ["w Sparcie", "w Troi", "w Atenach", "w Kartaginie"], ci: 2, e: "W Atenach — wolni obywatele sami głosowali nad prawami na zgromadzeniu." },
-      { q: "Chłopcy z tego greckiego miasta od 7. roku życia byli szkoleni na żołnierzy. Które to miasto?", opts: ["Sparta", "Ateny", "Korynt", "Olimpia"], ci: 0, e: "Sparta — do dziś o surowych warunkach mówimy „spartańskie”." },
-      { q: "Co Grecy przerywali na czas igrzysk w Olimpii?", opts: ["handel", "wojny", "naukę", "żeglugę"], ci: 1, e: "Wojny! Ogłaszano święty pokój, aby zawodnicy i kibice mogli bezpiecznie dotrzeć do Olimpii." },
-      { q: "Skąd pochodzi nazwa biegu maratońskiego?", opts: ["od greckiego słowa oznaczającego wytrwałość", "od bitwy pod Maratonem", "od imienia zwycięzcy igrzysk", "od nazwy góry w Grecji"], ci: 1, e: "Według legendy posłaniec przebiegł około 40 km z pola bitwy pod Maratonem do Aten, by ogłosić zwycięstwo." },
-      { q: "Kto jest uważany za autora eposów Iliada i Odyseja?", opts: ["Sokrates", "Platon", "Herodot", "Homer"], ci: 3, e: "Homer — według tradycji niewidomy poeta, który opisał wojnę trojańską i tułaczkę Odyseusza." },
-      { q: "Który bóg, według Greków, ciskał piorunami ze szczytu Olimpu?", opts: ["Zeus", "Posejdon", "Hades", "Ares"], ci: 0, e: "Zeus — władca bogów; piorun był jego bronią i znakiem." },
-      { q: "Jego nauczycielem był filozof Arystoteles, a on sam podbił ziemie aż po Indie. Kto to?", opts: ["Juliusz Cezar", "Aleksander Wielki", "Leonidas", "Hannibal"], ci: 1, e: "Aleksander Wielki — jedno z największych imperiów w historii zbudował, zanim skończył 33 lata." },
-      { q: "Którego rzymskiego wodza zasztyletowano w senacie w 44 r. p.n.e.?", opts: ["Nerona", "Oktawiana", "Juliusza Cezara", "Marka Antoniusza"], ci: 2, e: "Juliusza Cezara — według przekazów zdążył powiedzieć do przyjaciela: i ty, Brutusie, przeciw mnie?" },
-      { q: "Wielka arena w Rzymie, na której około 50 tysięcy widzów oglądało walki gladiatorów, to...", opts: ["Panteon", "Koloseum", "Circus Maximus", "Forum Romanum"], ci: 1, e: "Koloseum — igrzyska na jego otwarcie trwały podobno aż 100 dni." },
-      { q: "Jakimi budowlami Rzymianie doprowadzali wodę do miast, nieraz z odległych gór?", opts: ["akweduktami", "wiaduktami", "katakumbami", "termami"], ci: 0, e: "Akweduktami — niektóre stoją (a nawet działają!) do dziś, po ponad 2000 lat." }
+  // --- MATEMATYKA: działy (zakładki) i tematy (chipy) z generatorami zadań ---
+  const SUBJECTS = [
+    { key: "aryt_d", name: "Arytmetyka", icon: "🔢", cats: [
+      { key: "aryt", name: "Działania", icon: "➕", fn: genAryt },
+      { key: "kol", name: "Kolejność", icon: "🧮", fn: genKolejnosc },
+      { key: "pot", name: "Potęgi", icon: "xⁿ", fn: genPotega },
+      { key: "dzies", name: "Dziesiętne", icon: "0,5", fn: genDziesietne }
     ] },
-    { key: "h_piast", name: "Początki Polski", icon: "👑", bank: [
-      { q: "Według legendy Lech ujrzał białego orła na tle czerwonego nieba i założył tam gród. Który?", opts: ["Kraków", "Gniezno", "Poznań", "Płock"], ci: 1, e: "Gniezno (od orlego gniazda) — a biały orzeł na czerwonym tle to do dziś godło Polski." },
-      { q: "Od którego legendarnego, ubogiego kołodzieja wzięła nazwę pierwsza polska dynastia?", opts: ["od Popiela", "od Kraka", "od Piasta", "od Lecha"], ci: 2, e: "Od Piasta Kołodzieja — stąd dynastia Piastów." },
-      { q: "Którego okrutnego władcę, według legendy, zjadły myszy w wieży nad jeziorem?", opts: ["Popiela", "Kraka", "Mieszka", "Lecha"], ci: 0, e: "Popiela — legenda mówi, że myszy dopadły go w wieży w Kruszwicy." },
-      { q: "Kto według legendy pokonał smoka wawelskiego?", opts: ["Krak", "Piast", "Popiel", "Lech"], ci: 0, e: "Krak — smok pożarł owcę wypchaną siarką i pękł od picia wody z Wisły." },
-      { q: "Ślub z czeską księżniczką poprzedził wielką decyzję Mieszka I. Jaką?", opts: ["przeniesienie stolicy", "przyjęcie chrztu", "koronację na króla", "wyprawę na Rzym"], ci: 1, e: "Mieszko I przyjął chrzest w 966 roku — Polska weszła do świata chrześcijańskiej Europy." },
-      { q: "W którym roku odbył się chrzest Polski?", opts: ["1000", "966", "1025", "1410"], ci: 1, e: "W 966 roku — to umowny początek państwa polskiego." },
-      { q: "Z jakiego plemienia wywodził się Mieszko I?", opts: ["Wiślan", "Pomorzan", "Polan", "Mazowszan"], ci: 2, e: "Z Polan — ich nazwa pochodzi od uprawianych pól i to od nich wzięła się nazwa Polska." },
-      { q: "Kto przybył w roku 1000 do Gniezna, do grobu św. Wojciecha, na słynny zjazd?", opts: ["cesarz Otton III", "papież", "król Szwecji", "książę Rusi"], ci: 0, e: "Cesarz Otton III — zjazd gnieźnieński podniósł znaczenie młodego państwa Bolesława Chrobrego." },
-      { q: "Kto w 1025 roku został pierwszym koronowanym królem Polski?", opts: ["Mieszko I", "Kazimierz Wielki", "Bolesław Krzywousty", "Bolesław Chrobry"], ci: 3, e: "Bolesław Chrobry — koronował się na króla w ostatnim roku życia." },
-      { q: "Które miasto uznaje się za pierwszą stolicę Polski?", opts: ["Gniezno", "Warszawa", "Kraków", "Poznań"], ci: 0, e: "Gniezno — tam znajdowała się główna siedziba pierwszych Piastów." },
-      { q: "Które miasto było stolicą Polski przez wiele wieków, a królowie mieszkali na Wawelu?", opts: ["Toruń", "Kraków", "Gdańsk", "Lublin"], ci: 1, e: "Kraków — stolicę przeniesiono do Warszawy dopiero pod koniec XVI wieku." },
-      { q: "Nad którą rzeką leży Kraków?", opts: ["nad Odrą", "nad Wartą", "nad Wisłą", "nad Bugiem"], ci: 2, e: "Nad Wisłą — najdłuższą rzeką Polski, liczącą ponad 1000 km." },
-      { q: "Co przedstawia godło Polski?", opts: ["białego orła w koronie", "czarnego orła", "złotego lwa", "białego sokoła"], ci: 0, e: "Białego orła w złotej koronie na czerwonym tle." },
-      { q: "Jak miała na imię czeska księżniczka, żona Mieszka I?", opts: ["Jadwiga", "Bona", "Dobrawa", "Rycheza"], ci: 2, e: "Dobrawa (zwana też Dąbrówką) — z jej przybyciem wiąże się chrzest Mieszka." },
-      { q: "Jaki symbol władzy wkładano królowi na głowę podczas koronacji?", opts: ["hełm", "koronę", "wieniec laurowy", "mitrę"], ci: 1, e: "Koronę — polskich królów koronowano najpierw w Gnieźnie, a potem na Wawelu." }
+    { key: "ulam_d", name: "Ułamki i procenty", icon: "½", cats: [
+      { key: "ulam", name: "Ułamki", icon: "½", fn: genUlamek },
+      { key: "proc", name: "Procenty", icon: "％", fn: genProcent }
     ] },
-    { key: "h_jag", name: "Średniowiecze i Jagiellonowie", icon: "⚔️", bank: [
-      { q: "O którym królu mówi się, że zastał Polskę drewnianą, a zostawił murowaną?", opts: ["o Kazimierzu Wielkim", "o Mieszku I", "o Janie III Sobieskim", "o Władysławie Jagielle"], ci: 0, e: "O Kazimierzu Wielkim — wzniósł dziesiątki zamków i otoczył miasta murami." },
-      { q: "W którym roku rozegrała się bitwa pod Grunwaldem?", opts: ["1385", "1410", "1444", "1525"], ci: 1, e: "W 1410 roku — to jedna z największych bitew średniowiecznej Europy." },
-      { q: "Rycerze w białych płaszczach z czarnym krzyżem, pokonani pod Grunwaldem, to...", opts: ["templariusze", "joannici", "Krzyżacy", "husyci"], ci: 2, e: "Krzyżacy — zakon, który zbudował potężne państwo nad Bałtykiem." },
-      { q: "Jak zakończyła się bitwa pod Grunwaldem?", opts: ["zwycięstwem Polski i Litwy", "zwycięstwem Krzyżaków", "remisem", "ucieczką obu armii"], ci: 0, e: "Wielkim zwycięstwem wojsk polsko-litewskich — poległ nawet wielki mistrz zakonu." },
-      { q: "Który władca dowodził pod Grunwaldem i zapoczątkował dynastię Jagiellonów?", opts: ["Kazimierz Wielki", "Władysław Jagiełło", "Zygmunt Stary", "Władysław Łokietek"], ci: 1, e: "Władysław Jagiełło — wielki książę litewski, który został królem Polski." },
-      { q: "Która władczyni została koronowana... na króla Polski?", opts: ["Bona", "Dobrawa", "Anna Jagiellonka", "Jadwiga"], ci: 3, e: "Jadwiga — koronowano ją na króla (nie królową!), bo prawo nie przewidywało samodzielnie rządzącej kobiety." },
-      { q: "Unia w Krewie z 1385 roku połączyła Polskę z...", opts: ["Litwą", "Czechami", "Węgrami", "Szwecją"], ci: 0, e: "Z Litwą — dzięki temu powstało jedno z największych państw ówczesnej Europy." },
-      { q: "Najstarsza polska uczelnia, założona w 1364 roku w Krakowie, to dzisiejszy...", opts: ["Uniwersytet Warszawski", "Uniwersytet Jagielloński", "Uniwersytet Wrocławski", "Uniwersytet Gdański"], ci: 1, e: "Uniwersytet Jagielloński — studiował na nim m.in. Mikołaj Kopernik." },
-      { q: "W którym mieście urodził się Mikołaj Kopernik?", opts: ["w Krakowie", "w Gdańsku", "w Toruniu", "w Poznaniu"], ci: 2, e: "W Toruniu — mieście słynącym także z pierników." },
-      { q: "Dokończ powiedzenie o najsłynniejszym polskim rycerzu: polegać jak na...", opts: ["Zawiszy", "Jagielle", "Kraku", "Piaście"], ci: 0, e: "Na Zawiszy! Zawisza Czarny z Garbowa słynął z tego, że nigdy nie zawodził." },
-      { q: "Kto wyrzeźbił wielki ołtarz w kościele Mariackim w Krakowie?", opts: ["Jan Matejko", "Wit Stwosz", "Leonardo da Vinci", "Michał Anioł"], ci: 1, e: "Wit Stwosz — pracował nad nim aż 12 lat; to jeden z największych gotyckich ołtarzy Europy." },
-      { q: "Włoska królowa, żona Zygmunta Starego, od której pochodzi słowo włoszczyzna, to...", opts: ["Bona Sforza", "Jadwiga", "Barbara Radziwiłłówna", "Anna Jagiellonka"], ci: 0, e: "Bona Sforza — sprowadziła do Polski włoskie warzywa: selery, pory i kalafiory." },
-      { q: "Unia lubelska z 1569 roku utworzyła państwo o nazwie...", opts: ["Królestwo Polskie", "Rzeczpospolita Obojga Narodów", "Wielkie Księstwo Litewskie", "Związek Polsko-Litewski"], ci: 1, e: "Rzeczpospolita Obojga Narodów — wspólne państwo Polski i Litwy z jednym sejmem i królem." },
-      { q: "Największy ceglany zamek świata, dawna siedziba wielkich mistrzów krzyżackich, stoi w...", opts: ["Malborku", "Krakowie", "Ogrodzieńcu", "Książu"], ci: 0, e: "W Malborku — twierdza była tak potężna, że nie zdobyto jej nawet po zwycięstwie grunwaldzkim." },
-      { q: "Jaka dynastia rządziła Polską po Piastach, od 1386 roku?", opts: ["Wazowie", "Habsburgowie", "Jagiellonowie", "Andegawenowie"], ci: 2, e: "Jagiellonowie — panowali w Polsce i na Litwie niemal 200 lat." }
+    { key: "alg_d", name: "Algebra", icon: "🅧", cats: [
+      { key: "alg", name: "Równania proste", icon: "x+", fn: (d) => genRownania(d, ["add", "sub", "mul"]) },
+      { key: "alg2", name: "Równania dwuetapowe", icon: "2x+", fn: (d) => genRownania(d, ["linear"]) }
     ] },
-    { key: "h_daty", name: "Znane daty i postacie", icon: "📜", bank: [
-      { q: "Jakie święto obchodzimy 11 listopada?", opts: ["Święto Konstytucji", "Narodowe Święto Niepodległości", "Święto Wojska Polskiego", "Święto Flagi"], ci: 1, e: "Narodowe Święto Niepodległości — 11 listopada 1918 roku Polska wróciła na mapę po 123 latach." },
-      { q: "Co świętujemy 3 maja?", opts: ["uchwalenie konstytucji z 1791 roku", "chrzest Polski", "bitwę pod Grunwaldem", "koniec II wojny światowej"], ci: 0, e: "Rocznicę Konstytucji 3 maja z 1791 roku — pierwszej w Europie." },
-      { q: "Kto namalował ogromny obraz Bitwa pod Grunwaldem?", opts: ["Stanisław Wyspiański", "Józef Chełmoński", "Jan Matejko", "Wit Stwosz"], ci: 2, e: "Jan Matejko — płótno ma prawie 10 metrów szerokości!" },
-      { q: "Kto napisał epopeję narodową Pan Tadeusz?", opts: ["Adam Mickiewicz", "Juliusz Słowacki", "Henryk Sienkiewicz", "Bolesław Prus"], ci: 0, e: "Adam Mickiewicz — utwór zaczyna się od słów: Litwo! Ojczyzno moja!" },
-      { q: "Poeta renesansu, który pisał fraszki i treny w Czarnolesie, to...", opts: ["Jan Kochanowski", "Mikołaj Rej", "Adam Mickiewicz", "Ignacy Krasicki"], ci: 0, e: "Jan Kochanowski — najsłynniejszy poeta polskiego renesansu." },
-      { q: "Która Polka zdobyła dwie Nagrody Nobla — z fizyki i z chemii?", opts: ["Wisława Szymborska", "Maria Skłodowska-Curie", "Olga Tokarczuk", "Emilia Plater"], ci: 1, e: "Maria Skłodowska-Curie — odkryła rad i polon, nazwany tak na cześć Polski." },
-      { q: "Wielki polski kompozytor, którego serce spoczywa w warszawskim kościele, to...", opts: ["Stanisław Moniuszko", "Karol Szymanowski", "Fryderyk Chopin", "Ignacy Paderewski"], ci: 2, e: "Fryderyk Chopin — zmarł w Paryżu, ale zgodnie z jego wolą serce wróciło do Warszawy." },
-      { q: "Którego polskiego króla Turcy nazywali Lwem Lechistanu?", opts: ["Jana III Sobieskiego", "Zygmunta III Wazę", "Stefana Batorego", "Kazimierza Wielkiego"], ci: 0, e: "Jana III Sobieskiego — po tym, jak rozgromił ich armię pod Wiedniem w 1683 roku." },
-      { q: "Imię którego polskiego bohatera nosi najwyższa góra Australii?", opts: ["Piłsudskiego", "Kościuszki", "Pułaskiego", "Kopernika"], ci: 1, e: "Góra Kościuszki (Mount Kosciuszko) — nazwał ją tak polski podróżnik Paweł Edmund Strzelecki." },
-      { q: "Marszałek, który odegrał kluczową rolę w odzyskaniu niepodległości w 1918 roku, to...", opts: ["Józef Piłsudski", "Władysław Sikorski", "Tadeusz Kościuszko", "Józef Haller"], ci: 0, e: "Józef Piłsudski — 11 listopada 1918 roku objął dowództwo nad polskim wojskiem." },
-      { q: "Gdzie padły pierwsze strzały II wojny światowej?", opts: ["pod Grunwaldem", "w Warszawie", "na Westerplatte", "pod Monte Cassino"], ci: 2, e: "Na Westerplatte w Gdańsku — niewielka polska załoga broniła się aż 7 dni." },
-      { q: "Za co Lech Wałęsa otrzymał Pokojową Nagrodę Nobla w 1983 roku?", opts: ["za przewodzenie Solidarności", "za odkrycia naukowe", "za książki", "za działalność w ONZ"], ci: 0, e: "Za pokojową walkę Solidarności o prawa robotników." },
-      { q: "Kto był ostatnim królem Polski?", opts: ["Jan III Sobieski", "August III", "Stanisław August Poniatowski", "Zygmunt III Waza"], ci: 2, e: "Stanisław August Poniatowski — zrzekł się korony po trzecim rozbiorze w 1795 roku." },
-      { q: "Kto był pierwszym koronowanym królem Polski?", opts: ["Mieszko I", "Bolesław Chrobry", "Kazimierz Wielki", "Władysław Jagiełło"], ci: 1, e: "Bolesław Chrobry — koronacja odbyła się w 1025 roku." },
-      { q: "Z którą datą łączy się bitwa pod Grunwaldem?", opts: ["966", "1410", "1683", "1791"], ci: 1, e: "1410 — co roku na polach Grunwaldu odbywa się wielka inscenizacja tej bitwy." }
-    ] },
-    { key: "h_nowoz", name: "Nowożytność", icon: "🌍", bank: [
-      { q: "Kolumb szukał morskiej drogi do Indii, a w 1492 roku dopłynął do...", opts: ["Australii", "Ameryki", "Japonii", "południowej Afryki"], ci: 1, e: "Do Ameryki — do końca życia sądził, że dotarł do Indii, dlatego mieszkańców nazwano Indianami." },
-      { q: "Który żeglarz jako pierwszy dopłynął z Europy do Indii, opływając Afrykę?", opts: ["Vasco da Gama", "Ferdynand Magellan", "Krzysztof Kolumb", "James Cook"], ci: 0, e: "Vasco da Gama — dotarł do Indii w 1498 roku." },
-      { q: "Wyprawa Magellana przeszła do historii, bo jako pierwsza...", opts: ["odkryła Amerykę", "dotarła na biegun", "opłynęła Ziemię dookoła", "przepłynęła Kanał Sueski"], ci: 2, e: "Opłynęła Ziemię dookoła — sam Magellan zginął w drodze i nie doczekał końca wyprawy." },
-      { q: "Kto namalował Mona Lisę, a przy okazji projektował machiny latające?", opts: ["Leonardo da Vinci", "Michał Anioł", "Rafael Santi", "Rembrandt"], ci: 0, e: "Leonardo da Vinci — artysta i wynalazca; szkicował m.in. śmigłowiec i spadochron." },
-      { q: "Wynalazek Jana Gutenberga sprawił, że książki przestały być rzadkością. Co to było?", opts: ["papier", "druk ruchomymi czcionkami", "pióro wieczne", "maszyna do pisania"], ci: 1, e: "Druk ruchomymi czcionkami — wcześniej książki przepisywano ręcznie całymi miesiącami." },
-      { q: "Epoka odrodzenia sztuki i nauki, nawiązująca do starożytności, to...", opts: ["barok", "gotyk", "renesans", "oświecenie"], ci: 2, e: "Renesans, czyli odrodzenie — na nowo odkryto wtedy dzieła Greków i Rzymian." },
-      { q: "Jak w dawnej Rzeczypospolitej wybierano króla po wygaśnięciu dynastii Jagiellonów?", opts: ["w wolnej elekcji", "przez losowanie", "dziedzicznie", "wyznaczał go papież"], ci: 0, e: "W wolnej elekcji — szlachta zjeżdżała na pole pod Warszawą i głosowała na kandydatów." },
-      { q: "Co ogłosił Mikołaj Kopernik, o którym mówimy: wstrzymał Słońce, ruszył Ziemię?", opts: ["że Ziemia krąży wokół Słońca", "że Ziemia jest płaska", "że Słońce krąży wokół Ziemi", "że gwiazdy są nieruchome"], ci: 0, e: "Że to Ziemia i planety krążą wokół Słońca — ten przewrót w nauce nazywamy kopernikańskim." },
-      { q: "Jak nazywa się najsłynniejsze dzieło Kopernika?", opts: ["O obrotach sfer niebieskich", "O budowie nieba", "Kronika polska", "Rozmowy o gwiazdach"], ci: 0, e: "O obrotach sfer niebieskich — Kopernik pracował nad nim przez wiele lat." },
-      { q: "Jak nazywał się zjazd szlachty, który uchwalał prawa Rzeczypospolitej?", opts: ["trybunał", "sejm", "wiec", "synod"], ci: 1, e: "Sejm — decydował m.in. o podatkach i wojnach." },
-      { q: "Jak nazywało się prawo, dzięki któremu jeden poseł okrzykiem nie pozwalam mógł zerwać cały sejm?", opts: ["liberum veto", "pospolite ruszenie", "wolna elekcja", "konfederacja"], ci: 0, e: "Liberum veto — z czasem sparaliżowało państwo, bo wystarczył jeden przekupiony poseł." },
-      { q: "Najazd Szwedów na Polskę w XVII wieku, który zalał kraj jak wielka fala, nazwano...", opts: ["powodzią", "potopem", "burzą", "nawałnicą"], ci: 1, e: "Potopem szwedzkim — opisał go Henryk Sienkiewicz w powieści Potop." },
-      { q: "Obrona którego klasztoru podczas potopu szwedzkiego podniosła Polaków na duchu?", opts: ["Jasnej Góry", "Tyńca", "Oliwy", "Świętego Krzyża"], ci: 0, e: "Jasnej Góry w Częstochowie — klasztor odparł oblężenie, choć Szwedzi zajęli niemal cały kraj." },
-      { q: "Skrzydlata jazda, najsłynniejsza formacja dawnego polskiego wojska, to...", opts: ["dragoni", "kirasjerzy", "husaria", "ułani"], ci: 2, e: "Husaria — jej skrzydła miały płoszyć konie wroga; przez ponad sto lat była niemal niepokonana." },
-      { q: "W którym roku Jan III Sobieski rozbił armię turecką pod Wiedniem?", opts: ["1610", "1655", "1683", "1717"], ci: 2, e: "W 1683 roku — wieść o zwycięstwie król podsumował: przybyliśmy, zobaczyliśmy, Bóg zwyciężył." }
-    ] },
-    { key: "h_rozb", name: "Rozbiory i niepodległość", icon: "🎗️", bank: [
-      { q: "Konstytucja 3 maja z 1791 roku była pierwsza w Europie, a która na świecie?", opts: ["pierwsza", "druga", "trzecia", "piąta"], ci: 1, e: "Druga — wyprzedziła ją tylko konstytucja Stanów Zjednoczonych." },
-      { q: "Czym była Konstytucja 3 maja?", opts: ["ustawą o ustroju państwa", "traktatem pokojowym", "przywilejem szlacheckim", "umową handlową"], ci: 0, e: "Najważniejszą ustawą określającą prawa i ustrój Rzeczypospolitej." },
-      { q: "Ile razy sąsiedzi podzielili między siebie ziemie Polski pod koniec XVIII wieku?", opts: ["dwa razy", "trzy razy", "cztery razy", "pięć razy"], ci: 1, e: "Trzy razy — w 1772, 1793 i 1795 roku; to tak zwane rozbiory." },
-      { q: "Po którym rozbiorze Polska całkiem zniknęła z mapy Europy?", opts: ["po pierwszym", "po drugim", "po trzecim", "nigdy nie zniknęła"], ci: 2, e: "Po trzecim rozbiorze w 1795 roku — państwo polskie przestało istnieć na 123 lata." },
-      { q: "Które państwa rozebrały Polskę?", opts: ["Rosja, Prusy i Austria", "Rosja, Szwecja i Turcja", "Prusy, Francja i Anglia", "Austria, Węgry i Czechy"], ci: 0, e: "Rosja, Prusy i Austria — trzej najwięksi sąsiedzi Rzeczypospolitej." },
-      { q: "Kto poprowadził powstanie w 1794 roku, w którym pod Racławicami zasłynęli kosynierzy?", opts: ["Józef Poniatowski", "Jan Henryk Dąbrowski", "Tadeusz Kościuszko", "Romuald Traugutt"], ci: 2, e: "Tadeusz Kościuszko — kosynierzy, chłopi z kosami osadzonymi na sztorc, zdobyli rosyjskie armaty." },
-      { q: "Z którym francuskim wodzem Polacy wiązali nadzieje na wolność (wspomina go nasz hymn)?", opts: ["z Napoleonem Bonaparte", "z Ludwikiem XIV", "z Karolem Wielkim", "z Joanną d’Arc"], ci: 0, e: "Z Napoleonem — w hymnie śpiewamy: dał nam przykład Bonaparte, jak zwyciężać mamy." },
-      { q: "Jakie państwo polskie utworzył Napoleon w 1807 roku?", opts: ["Królestwo Polskie", "Księstwo Warszawskie", "Rzeczpospolitą Krakowską", "Legiony Polskie"], ci: 1, e: "Księstwo Warszawskie — istniało tylko 8 lat, ale dało Polakom nadzieję." },
-      { q: "Gdzie powstały Legiony Polskie generała Dąbrowskiego, o których śpiewamy w hymnie?", opts: ["we Francji", "we Włoszech", "w Turcji", "w Ameryce"], ci: 1, e: "We Włoszech — dlatego w hymnie są słowa: z ziemi włoskiej do Polski." },
-      { q: "Które powstanie rozpoczęło się w noc listopadową 1830 roku?", opts: ["kościuszkowskie", "styczniowe", "listopadowe", "wielkopolskie"], ci: 2, e: "Powstanie listopadowe — zaczęli je młodzi podchorążowie atakiem na Belweder." },
-      { q: "W którym roku wybuchło powstanie styczniowe?", opts: ["1830", "1846", "1863", "1905"], ci: 2, e: "W 1863 roku — powstańcy ponad rok prowadzili walkę partyzancką z Rosją." },
-      { q: "Jak nazywa się polski hymn narodowy?", opts: ["Rota", "Bogurodzica", "Warszawianka", "Mazurek Dąbrowskiego"], ci: 3, e: "Mazurek Dąbrowskiego — co ciekawe, powstał we Włoszech, wśród polskich legionistów." },
-      { q: "Od jakich słów zaczyna się polski hymn?", opts: ["Jeszcze Polska nie zginęła", "Boże, coś Polskę", "Nie rzucim ziemi", "Witaj, majowa jutrzenko"], ci: 0, e: "Jeszcze Polska nie zginęła, kiedy my żyjemy." },
-      { q: "Po ilu latach zaborów Polska odzyskała niepodległość w 1918 roku?", opts: ["po 63 latach", "po 100 latach", "po 123 latach", "po 146 latach"], ci: 2, e: "Po 123 latach — od trzeciego rozbioru w 1795 do 11 listopada 1918 roku." },
-      { q: "Komu 11 listopada 1918 roku powierzono dowództwo nad odradzającym się wojskiem polskim?", opts: ["Józefowi Piłsudskiemu", "Romanowi Dmowskiemu", "Ignacemu Paderewskiemu", "Wincentemu Witosowi"], ci: 0, e: "Józefowi Piłsudskiemu — dlatego właśnie 11 listopada świętujemy niepodległość." }
-    ] },
-    { key: "h_xx", name: "XX wiek", icon: "🕊️", bank: [
-      { q: "W jakich latach toczyła się I wojna światowa?", opts: ["1905–1910", "1914–1918", "1918–1921", "1939–1945"], ci: 1, e: "W latach 1914–1918 — jej koniec dał Polsce szansę na odzyskanie niepodległości." },
-      { q: "Kiedy wybuchła II wojna światowa?", opts: ["11 listopada 1918", "3 maja 1921", "1 września 1939", "1 sierpnia 1944"], ci: 2, e: "1 września 1939 roku — od niemieckiego ataku na Polskę." },
-      { q: "Które państwo zaatakowało Polskę 1 września 1939 roku?", opts: ["Niemcy", "ZSRR", "Węgry", "Rumunia"], ci: 0, e: "Niemcy — pierwsze strzały padły na Westerplatte w Gdańsku." },
-      { q: "Kto 17 września 1939 roku uderzył na Polskę od wschodu?", opts: ["Litwa", "Związek Radziecki", "Czechosłowacja", "Turcja"], ci: 1, e: "Związek Radziecki — Polska znalazła się w kleszczach dwóch najeźdźców." },
-      { q: "Zbrodnia na tysiącach polskich oficerów, dokonana przez Sowietów w 1940 roku, to zbrodnia...", opts: ["katyńska", "wołyńska", "piaśnicka", "pomorska"], ci: 0, e: "Katyńska — od lasu katyńskiego, w którym odkryto groby polskich oficerów." },
-      { q: "Ile dni trwało powstanie warszawskie z 1944 roku?", opts: ["7 dni", "63 dni", "100 dni", "cały rok"], ci: 1, e: "63 dni — walczyli w nim także młodzi harcerze, m.in. jako łącznicy i listonosze Poczty Polowej." },
-      { q: "W którym roku zakończyła się II wojna światowa?", opts: ["1943", "1944", "1945", "1947"], ci: 2, e: "W 1945 roku — w Europie 8 maja, obchodzonym jako Dzień Zwycięstwa." },
-      { q: "Jak nazywało się (w skrócie) państwo polskie rządzone po wojnie przez komunistów?", opts: ["RP", "PRL", "KRP", "PZPR"], ci: 1, e: "PRL — Polska Rzeczpospolita Ludowa, zależna od Związku Radzieckiego." },
-      { q: "Jaki wielki ruch społeczny narodził się w 1980 roku w Stoczni Gdańskiej?", opts: ["Solidarność", "Sokół", "Znak", "Odnowa"], ci: 0, e: "Solidarność — w szczytowym momencie należało do niej blisko 10 milionów Polaków!" },
-      { q: "Co ogłoszono w Polsce 13 grudnia 1981 roku, gdy na ulice wyjechały czołgi?", opts: ["stan wojenny", "mobilizację", "niepodległość", "referendum"], ci: 0, e: "Stan wojenny — władze PRL chciały w ten sposób zdławić Solidarność." },
-      { q: "Kto przewodził Solidarności, a w 1990 roku został prezydentem Polski?", opts: ["Wojciech Jaruzelski", "Tadeusz Mazowiecki", "Lech Wałęsa", "Bronisław Geremek"], ci: 2, e: "Lech Wałęsa — elektryk ze Stoczni Gdańskiej, laureat Pokojowej Nagrody Nobla." },
-      { q: "Kim został Karol Wojtyła w 1978 roku?", opts: ["prezydentem Polski", "papieżem", "premierem", "prymasem Polski"], ci: 1, e: "Papieżem Janem Pawłem II — pierwszym od ponad 450 lat papieżem spoza Włoch." },
-      { q: "Co wydarzyło się w Polsce w 1989 roku?", opts: ["wybuchła wojna", "upadł komunizm", "Polska weszła do UE", "uchwalono Konstytucję 3 maja"], ci: 1, e: "Upadł komunizm — po rozmowach Okrągłego Stołu odbyły się częściowo wolne wybory." },
-      { q: "W którym roku Polska wstąpiła do NATO?", opts: ["1989", "1995", "1999", "2004"], ci: 2, e: "W 1999 roku — razem z Czechami i Węgrami." },
-      { q: "W którym roku Polska weszła do Unii Europejskiej?", opts: ["1999", "2004", "2007", "2010"], ci: 1, e: "1 maja 2004 roku — razem z dziewięcioma innymi państwami." }
+    { key: "geom_d", name: "Geometria", icon: "📐", cats: [
+      { key: "geom", name: "Pola figur", icon: "▦", fn: (d) => genGeom(d, ["prost-pole", "kwadrat-pole", "trojkat-pole"]) },
+      { key: "geom_obw", name: "Obwody", icon: "▭", fn: (d) => genGeom(d, ["prost-obw", "kwadrat-obw"]) }
     ] }
   ];
 
-  const SUBJECTS = [
-    { key: "mat", name: "Matematyka", icon: "🧮", cats: MATH_CATS },
-    { key: "his", name: "Historia", icon: "🏰", cats: HIST_CATS },
-    { key: "pol", name: "Polski", icon: "📖", cats: POL_CATS }
-  ];
-
-  // adnotuj każdą kategorię przedmiotem + płaska mapa po kluczu
+  // adnotuj każdy temat działem + płaska mapa po kluczu
   const ALL_CATS = [];
   SUBJECTS.forEach((s) => s.cats.forEach((c) => { c.subj = s.name; c.subjKey = s.key; ALL_CATS.push(c); }));
   function catByKey(k) { return ALL_CATS.find((c) => c.key === k); }
 
-  function escapeHtml(t) {
-    return String(t).replace(/[&<>"]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]));
-  }
 
-  // buduje pytanie z banku (przedmioty bez generatora)
-  function makeBankQuestion(cat) {
-    const n = cat.bank.length;
-    // "talia": pokaż wszystkie pytania z działu zanim się powtórzą
-    if (!cat._deck || cat._deck.length === 0) {
-      cat._deck = shuffle(Array.from({ length: n }, (_, i) => i));
-      // unikaj powtórki tuż po przetasowaniu (to samo co ostatnie)
-      if (n > 1 && cat._deck[cat._deck.length - 1] === cat._last) cat._deck.unshift(cat._deck.pop());
-    }
-    const idx = cat._deck.pop();
-    cat._last = idx;
-    const qq = cat.bank[idx];
-    const opts = shuffle(qq.opts.map((t, i) => ({ html: escapeHtml(t), correct: i === qq.ci })));
-    return { cat: cat.name, promptHTML: escapeHtml(qq.q), options: opts, explain: qq.e };
-  }
 
   // ---------- badges ----------
   const BADGES = [
@@ -1765,14 +1317,14 @@
   ];
   function activeProfile() { return PROFILES.find((p) => p.id === activeId) || PROFILES[0]; }
   function blankState() {
-    return { points: 0, level: 1, streak: 0, bestStreak: 0, solved: 0, correctCount: 0, best: 0, earned: {}, selected: null, subject: "mat" };
+    return { points: 0, level: 1, streak: 0, bestStreak: 0, solved: 0, correctCount: 0, best: 0, earned: {}, selected: null, subject: "aryt_d" };
   }
 
   let store = {};                 // id profilu -> zapisany stan
   let activeId = PROFILES[0].id;
 
   let state = { points: 0, level: 1, streak: 0, bestStreak: 0, solved: 0, correctCount: 0, best: 0, earned: {} };
-  let subjectKey = "mat";
+  let subjectKey = "aryt_d";
   function curSubject() { return SUBJECTS.find((s) => s.key === subjectKey) || SUBJECTS[0]; }
   function curCats() { return curSubject().cats; }
   let selected = new Set(curCats().map((c) => c.key));
@@ -1789,7 +1341,7 @@
     const s = store[id] || blankState();
     state.points = s.points || 0; state.level = s.level || 1; state.streak = s.streak || 0; state.bestStreak = s.bestStreak || 0;
     state.solved = s.solved || 0; state.correctCount = s.correctCount || 0; state.best = s.best || 0; state.earned = s.earned || {};
-    subjectKey = (s.subject && SUBJECTS.some((x) => x.key === s.subject)) ? s.subject : "mat";
+    subjectKey = (s.subject && SUBJECTS.some((x) => x.key === s.subject)) ? s.subject : "aryt_d";
     const cats = curCats();
     if (Array.isArray(s.selected) && s.selected.length) {
       const valid = s.selected.filter((k) => cats.some((c) => c.key === k));
@@ -1810,7 +1362,7 @@
         const old = localStorage.getItem(OLD_KEY);
         if (old) {
           const s = JSON.parse(old);
-          store["antek"] = Object.assign(blankState(), { best: s.best || 0, earned: s.earned || {}, selected: s.selected || null, subject: s.subject || "mat" });
+          store["antek"] = Object.assign(blankState(), { best: s.best || 0, earned: s.earned || {}, selected: s.selected || null, subject: s.subject || "aryt_d" });
         }
         activeId = PROFILES[0].id;
       }
@@ -1924,7 +1476,7 @@
   function newQuestion() {
     answered = false;
     const cat = pick(poolCats());
-    current = cat.fn ? cat.fn(state.level) : makeBankQuestion(cat);
+    current = cat.fn(state.level);
     $("chip").textContent = current.cat;
     $("prompt").innerHTML = current.promptHTML;
     const box = $("options"); box.innerHTML = "";
@@ -2108,7 +1660,7 @@
     const status = ok ? "Zaliczony" : (full ? "Do poprawy" : "Niepełny (" + total + "/" + REPORT.target + ")");
     sendReport({
       name: activeProfile().name,
-      dzial: cat ? cat.subj + " · " + cat.name : "—",
+      dzial: cat ? "Matematyka · " + cat.subj + " · " + cat.name : "—",
       zadania: String(total),
       poprawne: String(correct),
       celnosc: pct + "%",
@@ -2185,6 +1737,7 @@
   newQuestion();
 })();
 </script>
+
 
 </body>
 </html>
