@@ -1246,6 +1246,375 @@
     return r;
   }
 
+  // ---------- KANGUR: zadania w stylu konkursu Kangur Matematyczny (Beniamin, kl. 5–6) ----------
+  // Własne generatory inspirowane TYPAMI zadań konkursowych (zegary, kostki, rytmy, logika,
+  // podziały, figury w głowie). Bez rysunków — wszystko da się policzyć w głowie / na kartce.
+  const KG_IMIONA = ["Ania", "Bartek", "Celina", "Darek", "Ewa", "Franek", "Gosia", "Hubert", "Iga", "Janek", "Kasia", "Leon", "Maja", "Natalia", "Olek", "Pola"];
+  const KG_IM_Z = { Ania: 1, Celina: 1, Ewa: 1, Gosia: 1, Iga: 1, Kasia: 1, Maja: 1, Natalia: 1, Pola: 1 }; // rodzaj żeński
+  const kgImiona = (n) => shuffle([...KG_IMIONA]).slice(0, n);
+  const kgZ = (im) => !!KG_IM_Z[im];
+  const KG_DOP = { Ania: "Ani", Bartek: "Bartka", Celina: "Celiny", Darek: "Darka", Ewa: "Ewy", Franek: "Franka", Gosia: "Gosi", Hubert: "Huberta", Iga: "Igi", Janek: "Janka", Kasia: "Kasi", Leon: "Leona", Maja: "Mai", Natalia: "Natalii", Olek: "Olka", Pola: "Poli" };
+  const kgDop = (im) => KG_DOP[im] || im;
+  const hhmm = (min) => { min = ((min % 1440) + 1440) % 1440; return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`; };
+  const kgTxt = (v) => `<span class="opt-text">${v}</span>`;
+  const kgLead = (pts) => lead(`🦘 Kangur · zadanie za ${pts} pkt`);
+  function kgWrap(pts, tekst, ans, wrongs, render) {
+    render = render || numRender;
+    const w = uniq(wrongs).filter((x) => x !== ans && x !== undefined && x !== null && !(typeof x === "number" && (x < 0 || !isFinite(x) || x % 1 !== 0)));
+    if (typeof ans === "number") for (const x of nearMisses(ans, 1)) w.push(x); // dopełnienie do 4 opcji
+    return { cat: `Kangur · ${pts} pkt`, promptHTML: kgLead(pts) + story(tekst), options: makeOptions(ans, w, render), explain: "", pts };
+  }
+  const kgOsob = (n) => n === 1 ? "1 osoba" : kgPl(n, "osoba", "osoby", "osób");
+  // odmiana po liczebniku: 1 naklejka, 2–4 naklejki, 5+ naklejek (22–24 → naklejki, 12–14 → naklejek)
+  const kgPl = (n, one, few, many) => { const d1 = n % 10, d2 = n % 100; return `${n} ${n === 1 ? one : (d1 >= 2 && d1 <= 4 && !(d2 >= 12 && d2 <= 14)) ? few : many}`; };
+
+  // --- 1) Czas i zegar ---
+  function genKgCzas(d) {
+    const forms = [
+      () => { // X minut temu była HH:MM
+        const now = rint(0, 1439), x = rint(95, 200 + d * 40);
+        const then = now - x;
+        const naive = then + Math.floor(x / 100) * 60 + (x % 100); // błąd: 224 min = "2 h 24 min"
+        const r = kgWrap(3, `${x} minut temu była godzina <b>${hhmm(then)}</b>. Która godzina jest teraz?`, hhmm(now), [hhmm(naive), hhmm(now + 60), hhmm(now - 60), hhmm(now + 10), hhmm(now - 10)], kgTxt);
+        r.explain = `${x} min = ${Math.floor(x / 60)} h ${x % 60} min. ${hhmm(then)} + ${Math.floor(x / 60)} h ${x % 60} min = <b>${hhmm(now)}</b>`;
+        return r;
+      },
+      () => { // za X minut będzie HH:MM
+        const now = rint(0, 1439), x = rint(75, 180 + d * 30);
+        const fut = now + x;
+        const r = kgWrap(3, `Za ${x} minut będzie godzina <b>${hhmm(fut)}</b>. Która godzina jest teraz?`, hhmm(now), [hhmm(fut + x), hhmm(now + 60), hhmm(now - 60), hhmm(now - 10)], kgTxt);
+        r.explain = `${x} min = ${Math.floor(x / 60)} h ${x % 60} min. Cofamy: ${hhmm(fut)} − ${Math.floor(x / 60)} h ${x % 60} min = <b>${hhmm(now)}</b>`;
+        return r;
+      },
+      () => { // zegar spieszy się / spóźnia
+        const m = pick([2, 3, 4, 5, 6]), dni = rint(3, 7 + d), spieszy = Math.random() < 0.5;
+        const start = pick([480, 540, 600, 720, 900]);
+        const ans = start + (spieszy ? 1 : -1) * m * dni;
+        const r = kgWrap(4, `Zegar ${spieszy ? "spieszy się" : "spóźnia się"} o ${m} minuty na dobę. Ustawiono go dokładnie o <b>${hhmm(start)}</b>. Co pokaże ten zegar po ${pl(dni, "dniach", "dniach")} o ${hhmm(start)} prawdziwego czasu?`, hhmm(ans), [hhmm(start + (spieszy ? -1 : 1) * m * dni), hhmm(start + (spieszy ? 1 : -1) * m), hhmm(start + (spieszy ? 1 : -1) * m * (dni + 1)), hhmm(start)], kgTxt);
+        r.explain = `Po ${dni} dniach różnica to ${m} · ${dni} = ${m * dni} min. ${hhmm(start)} ${spieszy ? "+" : "−"} ${m * dni} min = <b>${hhmm(ans)}</b>`;
+        return r;
+      },
+      () => { // ile minut między
+        const a = rint(360, 1200), x = rint(65, 300 + d * 30), b = a + x;
+        const r = kgWrap(3, `Lekcje zaczęły się o <b>${hhmm(a)}</b>, a skończyły o <b>${hhmm(b)}</b>. Ile minut trwały?`, x, [x + 60, x - 60, x + 40, x - 40, x + 10]);
+        r.explain = `Od ${hhmm(a)} do ${hhmm(b)} to ${Math.floor(x / 60)} h ${x % 60} min = <b>${x} min</b>`;
+        return r;
+      }
+    ];
+    return pick(forms)();
+  }
+
+  // --- 2) Kostka i cyfry ---
+  function genKgCyfry(d) {
+    const forms = [
+      () => { // kostka: 3 ściany przy wierzchołku
+        const tr = [pick([1, 6]), pick([2, 5]), pick([3, 4])];
+        const s = tr[0] + tr[1] + tr[2], ans = 21 - s;
+        const r = kgWrap(3, `Na ścianach kostki do gry są liczby oczek od 1 do 6, a na przeciwległych ścianach jest razem 7 oczek. Na trzech ścianach o wspólnym wierzchołku jest razem <b>${s}</b> oczek. Ile oczek jest razem na pozostałych trzech ścianach?`, ans, [s, ans + 1, ans - 1, 18 - s, 14 - s]);
+        r.explain = `Wszystkich oczek jest 1+2+3+4+5+6 = 21, więc na pozostałych ścianach: 21 − ${s} = <b>${ans}</b>`;
+        return r;
+      },
+      () => { // ile liczb dwucyfrowych o sumie cyfr s
+        const s = rint(5, 15);
+        let cnt = 0; for (let n = 10; n <= 99; n++) if (Math.floor(n / 10) + n % 10 === s) cnt++;
+        const r = kgWrap(4, `Ile jest liczb dwucyfrowych, których suma cyfr wynosi <b>${s}</b>?`, cnt, [cnt + 1, cnt - 1, cnt + 2, s, 10 - cnt]);
+        const lst = []; for (let n = 10; n <= 99; n++) if (Math.floor(n / 10) + n % 10 === s) lst.push(n);
+        r.explain = `To liczby: ${lst.join(", ")} — razem <b>${cnt}</b>`;
+        return r;
+      },
+      () => { // ile razy cyfra c w zapisie 1..N
+        const c = rint(1, 9), N = pick([30, 40, 50, 60, 80, 99, 100, 120]);
+        let cnt = 0; for (let n = 1; n <= N; n++) cnt += (String(n).match(new RegExp(c, "g")) || []).length;
+        const r = kgWrap(4, `Zapisano wszystkie liczby od 1 do <b>${N}</b>. Ile razy użyto cyfry <b>${c}</b>?`, cnt, [cnt - 1, cnt + 1, cnt - 10, cnt + 10, Math.floor(N / 10)]);
+        r.explain = `Cyfra ${c} na miejscu jedności: w ${c}, 1${c}, 2${c}… oraz na miejscu dziesiątek: ${c}0–${c}9 (jeśli mieszczą się do ${N}). Razem <b>${cnt}</b>`;
+        return r;
+      },
+      () => { // ile cyfr użyto 1..N
+        const N = rint(25, 60 + d * 20);
+        let cnt = 0; for (let n = 1; n <= N; n++) cnt += String(n).length;
+        const r = kgWrap(4, `Na kartce wypisano kolejno wszystkie liczby od 1 do <b>${N}</b>. Ile cyfr zapisano?`, cnt, [N, cnt - 9, cnt + 9, cnt - 1, cnt + 1, 2 * N]);
+        r.explain = `Liczb jednocyfrowych jest 9 (9 cyfr), dwucyfrowych od 10 do ${Math.min(N, 99)}: ${Math.min(N, 99) - 9} (po 2 cyfry)${N > 99 ? `, trzycyfrowych ${N - 99} (po 3)` : ""}. Razem <b>${cnt}</b>`;
+        return r;
+      },
+      () => { // liczba dwucyfrowa z sumy i różnicy cyfr
+        let a, b; do { a = rint(1, 9); b = rint(0, 9); } while (a === b || a + b < 5);
+        const s = a + b, dif = Math.abs(a - b), big = a > b;
+        const ans = a * 10 + b;
+        const r = kgWrap(3, `Suma cyfr liczby dwucyfrowej wynosi <b>${s}</b>, a cyfra dziesiątek jest o <b>${dif}</b> ${big ? "większa" : "mniejsza"} od cyfry jedności. Jaka to liczba?`, ans, [b * 10 + a, ans + 9, ans - 9, ans + 1, s * 10 + dif]);
+        r.explain = `Cyfry to ${Math.max(a, b)} i ${Math.min(a, b)} (suma ${s}, różnica ${dif}). ${big ? "Większa" : "Mniejsza"} jest na miejscu dziesiątek: <b>${ans}</b>`;
+        return r;
+      },
+      () => { // zapisz największą/najmniejszą liczbę z cyfr
+        const n = rint(3, 4), cyf = shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]).slice(0, n);
+        const maxi = Math.random() < 0.5;
+        const sorted = [...cyf].sort((x, y) => x - y);
+        let ans;
+        if (maxi) ans = +[...sorted].reverse().join("");
+        else { const nz = sorted.find((x) => x !== 0); const rest = sorted.filter((x, i) => i !== sorted.indexOf(nz)); ans = +[nz, ...rest].join(""); }
+        const r = kgWrap(3, `Z cyfr <b>${shuffle([...cyf]).join(", ")}</b> (każdej użyj dokładnie raz) ułóż ${maxi ? "największą" : "najmniejszą"} liczbę. Jaka to liczba?`, ans, [+[...sorted].join("") || null, +[...sorted].reverse().join(""), maxi ? ans - 9 : ans + 9, +[...sorted].reverse().slice(1).concat(sorted[sorted.length - 1]).join("")]);
+        r.explain = `${maxi ? "Największa cyfra na początku, dalej malejąco" : "Najmniejsza niezerowa cyfra na początku (zero nie może być pierwsze), dalej rosnąco"}: <b>${ans}</b>`;
+        return r;
+      }
+    ];
+    return pick(forms)();
+  }
+
+  // --- 3) Zagadki liczbowe (podziały, wiek, porównania) ---
+  function genKgZagadki(d) {
+    const forms = [
+      () => { // jabłka: dwa warunki
+        const cands = [];
+        for (const n of [6, 8, 10, 12, 15, 16, 18, 20, 24]) for (const a of [3, 4, 5, 6, 8, 9, 10, 12]) for (const m of [2, 3, 4, 5, 6, 8]) {
+          if (m >= n) continue;
+          const T = n * a; if (T % (n - m)) continue;
+          const j = T / (n - m) - a; if (j < 1 || j > 20) continue;
+          const k = pick([2, 3, 4, 5]);
+          cands.push({ n, a, m, j, k, T });
+        }
+        const c = pick(cands);
+        const r = kgWrap(5, `Uczniowie podzielili po równo jabłka ze skrzynki. Gdyby jabłek było o <b>${c.n * c.k}</b> więcej, każdy dostałby o <b>${c.k}</b> więcej. Gdyby uczniów było o <b>${c.m}</b> mniej, każdy dostałby o <b>${c.j}</b> więcej. Ile jabłek jest w skrzynce?`, c.T, [c.T + c.n, c.T - c.n, c.n * c.k, c.T + c.n * c.k, (c.n - c.m) * c.a]);
+        r.explain = `${c.n * c.k} jabłek więcej daje po ${c.k} na osobę, więc uczniów jest ${c.n * c.k} : ${c.k} = ${c.n}. Jabłek jest ${c.n} · a; przy ${c.n - c.m} uczniach każdy ma a + ${c.j}, czyli ${c.n}·a = ${c.n - c.m}·(a + ${c.j}) → a = ${c.a}. Razem <b>${c.T}</b>`;
+        return r;
+      },
+      () => { // suma i różnica
+        const [A, B] = kgImiona(2);
+        const b = rint(5, 20 + d * 5), x = rint(2, 12), a = b + x, T = a + b;
+        const ans = Math.random() < 0.5 ? a : b;
+        const who = ans === a ? A : B;
+        const r = kgWrap(3, `${A} ma o <b>${kgPl(x, "naklejkę", "naklejki", "naklejek")}</b> więcej niż ${B}. Razem mają <b>${kgPl(T, "naklejkę", "naklejki", "naklejek")}</b>. Ile naklejek ma ${who}?`, ans, [ans === a ? b : a, Math.floor(T / 2), ans + x, ans - x, T - x]);
+        r.explain = `Gdyby ${A} ${kgZ(A) ? "oddała" : "oddał"} ${kgPl(x, "naklejkę", "naklejki", "naklejek")}, mieliby po (${T} − ${x}) : 2 = ${b}. Czyli ${B} ma ${b}, a ${A} ma ${b} + ${x} = ${a}. Odpowiedź: <b>${ans}</b>`;
+        return r;
+      },
+      () => { // wiek: mama k razy starsza, za t lat 2 razy
+        const [A] = kgImiona(1);
+        const t = rint(3, 12), k = pick([3, 3, 4, 5]);
+        // x: mama = k·x; k·x + t = 2(x + t) → (k−2)x = t → x = t/(k−2)
+        if (t % (k - 2)) return genKgZagadki(d);
+        const x = t / (k - 2), mama = k * x;
+        const r = kgWrap(5, `Mama jest dziś <b>${k}</b> razy starsza od ${kgDop(A)}. Za <b>${t}</b> lat będzie tylko 2 razy starsza. Ile lat ma dziś ${A}?`, x, [x + 1, x - 1, t, 2 * x, mama]);
+        r.explain = `Dziś: ${A} ma x lat, mama ${k}x. Za ${t} lat: ${k}x + ${t} = 2(x + ${t}), czyli ${k - 2}x = ${t}, więc x = <b>${x}</b> (mama ma ${mama})`;
+        return r;
+      },
+      () => { // pociąg i tunel
+        const L = pick([100, 120, 150, 200, 240, 300]), T = pick([300, 400, 450, 600, 800, 900]), v = pick([10, 15, 20, 25]);
+        if ((L + T) % v) return genKgZagadki(d);
+        const ans = (L + T) / v;
+        const r = kgWrap(5, `Pociąg ma długość <b>${L} m</b> i jedzie z prędkością <b>${v} m/s</b>. Ile sekund minie od chwili, gdy czoło pociągu wjedzie do tunelu o długości <b>${T} m</b>, do chwili, gdy ostatni wagon z niego wyjedzie?`, ans, [T / v % 1 === 0 ? T / v : null, ans + 10, ans - 10, (T - L) / v % 1 === 0 && T > L ? (T - L) / v : null, ans + 5]);
+        r.explain = `Pociąg musi przejechać długość tunelu i swoją własną: ${T} + ${L} = ${T + L} m. Czas: ${T + L} : ${v} = <b>${ans} s</b>`;
+        return r;
+      },
+      () => { // trzy liczby
+        const a = rint(3, 15 + d * 3), k = pick([2, 3]), p = rint(2, 10), b = k * a, c = b + p, T = a + b + c;
+        const r = kgWrap(4, `Druga liczba jest <b>${k}</b> razy większa od pierwszej, a trzecia jest o <b>${p}</b> większa od drugiej. Suma trzech liczb wynosi <b>${T}</b>. Jaka jest pierwsza liczba?`, a, [b, c, a + 1, a - 1, Math.round(T / 3)]);
+        r.explain = `Pierwsza: x, druga: ${k}x, trzecia: ${k}x + ${p}. Suma: ${2 * k + 1}x + ${p} = ${T}, więc ${2 * k + 1}x = ${T - p}, x = <b>${a}</b>`;
+        return r;
+      },
+      () => { // nogi i głowy
+        const kury = rint(3, 12 + d * 2), krowy = rint(2, 8 + d), glowy = kury + krowy, nogi = 2 * kury + 4 * krowy;
+        const r = kgWrap(4, `Na podwórku są kury i krowy. Razem mają <b>${glowy}</b> głów i <b>${nogi}</b> nóg. Ile jest krów?`, krowy, [kury, krowy + 1, krowy - 1, Math.floor(glowy / 2), nogi / 4 % 1 === 0 ? nogi / 4 : null]);
+        r.explain = `Gdyby wszystkie były kurami, nóg byłoby ${2 * glowy}. Nadmiar ${nogi} − ${2 * glowy} = ${nogi - 2 * glowy} to po 2 dodatkowe nogi na każdą krowę: ${nogi - 2 * glowy} : 2 = <b>${krowy}</b>`;
+        return r;
+      }
+    ];
+    return pick(forms)();
+  }
+
+  // --- 4) Wzory i rytmy ---
+  function genKgRytm(d) {
+    const forms = [
+      () => { // skoki w cyklu
+        const [A] = kgImiona(1);
+        const cykl = pick([["na dwie stopy", "na lewą stopę", "na dwie stopy", "na prawą stopę"], ["na lewą stopę", "na prawą stopę", "na dwie stopy"], ["na dwie stopy", "na dwie stopy", "na lewą stopę", "na prawą stopę", "na dwie stopy"]]);
+        const cel = pick(uniq(cykl));
+        const pos = cykl.map((x, i) => x === cel ? i : -1).filter((i) => i >= 0);
+        const L = cykl.length;
+        const okList = [], badList = [];
+        for (let n = 8 + d * 3; n <= 40 + d * 6; n++) (pos.includes((n - 1) % L) ? okList : badList).push(n);
+        const ans = pick(okList);
+        const r = kgWrap(3, `${A} skacze w rytmie: ${cykl.join(", ")} — i powtarza ten układ ${L} skoków wiele razy. Który z podanych skoków ${A} wykona <b>${cel}</b>?`, ans, shuffle(badList).slice(0, 5), (v) => `${v}.`);
+        r.explain = `Układ ma ${kgPl(L, "skok", "skoki", "skoków")}, więc skok nr n jest ${cel}, gdy n po podzieleniu przez ${L} daje resztę ${pos.map((p) => (p + 1) % L).join(" lub ")}. ${ans} : ${L} = ${Math.floor(ans / L)} r. ${ans % L} → <b>${ans}.</b>`;
+        return r;
+      },
+      () => { // koraliki
+        const KOL = [["czerwony", "czerwone"], ["niebieski", "niebieskie"], ["zielony", "zielone"], ["żółty", "żółte"], ["biały", "białe"]];
+        const kolory = shuffle([...KOL]).slice(0, 3);
+        const ile = kolory.map(() => rint(1, 3));
+        const L = ile.reduce((a, b) => a + b, 0);
+        const N = rint(20, 60 + d * 15);
+        const idx = (N - 1) % L;
+        let acc = 0, ans = 0; for (let i = 0; i < kolory.length; i++) { acc += ile[i]; if (idx < acc) { ans = i; break; } }
+        const opis = kolory.map((k, i) => `${ile[i]} ${ile[i] === 1 ? k[0] : k[1]}`).join(", ");
+        const r = kgWrap(3, `Na sznurek nawleczono koraliki w powtarzającym się rytmie: <b>${opis}</b>, i znów od początku. Jakiego koloru jest koralik numer <b>${N}</b>?`, kolory[ans][0], [...kolory.map((k) => k[0]), ...KOL.map((k) => k[0])].filter((k) => k !== kolory[ans][0]), kgTxt);
+        r.explain = `Jeden cykl to ${L} koralików. ${N} : ${L} = ${Math.floor(N / L)} r. ${N % L}, więc koralik ${N} jest ${N % L === 0 ? `ostatnim (${L}.)` : `${N % L}.`} w cyklu: <b>${kolory[ans][0]}</b>`;
+        return r;
+      },
+      () => { // rzędy w kinie (ciąg arytmetyczny)
+        const a = rint(8, 16), rz = rint(1, 3), n = rint(6, 12 + d);
+        const ans = a + rz * (n - 1);
+        const r = kgWrap(4, `W pierwszym rzędzie amfiteatru jest <b>${a}</b> miejsc, a w każdym następnym o <b>${rz}</b> więcej niż w poprzednim. Ile miejsc jest w rzędzie <b>${n}</b>?`, ans, [a + rz * n, ans + 1, ans - 1, a * n, a + rz]);
+        r.explain = `Od 1. do ${n}. rzędu jest ${n - 1} „kroków” po ${rz}: ${a} + ${rz} · ${n - 1} = <b>${ans}</b>`;
+        return r;
+      },
+      () => { // dzień tygodnia
+        const DNI = ["poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota", "niedziela"];
+        const s = rint(0, 6), n = rint(10, 60 + d * 20);
+        const ans = DNI[(s + n) % 7];
+        const r = kgWrap(3, `Dziś jest <b>${DNI[s]}</b>. Jaki dzień tygodnia będzie za <b>${n}</b> dni?`, ans, shuffle(DNI.filter((x) => x !== ans)).slice(0, 4), kgTxt);
+        r.explain = `${n} : 7 = ${Math.floor(n / 7)} r. ${n % 7}. Pełne tygodnie nic nie zmieniają, więc od dnia „${DNI[s]}” przesuwamy się o ${kgPl(n % 7, "dzień", "dni", "dni")} do przodu: <b>${ans}</b>`;
+        return r;
+      },
+      () => { // liczenie co k od a: n-ta liczba
+        const a = rint(1, 9), k = rint(3, 9), n = rint(8, 20 + d * 3);
+        const ans = a + k * (n - 1);
+        const r = kgWrap(4, `${kgImiona(1)[0]} liczy co <b>${k}</b>, zaczynając od <b>${a}</b>: ${a}, ${a + k}, ${a + 2 * k}, … Jaką liczbę wypowie jako <b>${n}</b>. z kolei?`, ans, [a + k * n, ans + 1, ans - 1, a * n, ans + k - 1]);
+        r.explain = `${n}. liczba to start plus ${n - 1} kroków: ${a} + ${k} · ${n - 1} = <b>${ans}</b>`;
+        return r;
+      },
+      () => { // ciąg: zasada ×2 lub +, brakujący wyraz
+        const typ = Math.random() < 0.5 ? "geo" : "fig";
+        let seq, rule;
+        if (typ === "geo") { const s = rint(1, 5), q = pick([2, 3]); seq = [0, 1, 2, 3, 4, 5].map((i) => s * Math.pow(q, i)); rule = `każda liczba jest ${q} razy większa od poprzedniej`; }
+        else { const s = rint(1, 6); let step = rint(1, 4); seq = [s]; for (let i = 1; i < 6; i++) { seq.push(seq[i - 1] + step); step++; } rule = "różnice między kolejnymi liczbami rosną o 1"; }
+        const hid = rint(3, 5); const ans = seq[hid];
+        const shown = seq.map((v, i) => i === hid ? "?" : v);
+        const r = kgWrap(4, `W ciągu <b>${shown.join(", ")}</b> każda liczba powstaje z poprzedniej według tej samej zasady. Jaka liczba jest w miejscu znaku zapytania?`, ans, [seq[hid - 1] + (seq[hid - 1] - seq[hid - 2]), ans + 1, ans - 1, seq[hid - 1] * 2, ans + 2]);
+        r.explain = `Zasada: ${rule}. Brakująca liczba: <b>${ans}</b>`;
+        return r;
+      }
+    ];
+    return pick(forms)();
+  }
+
+  // --- 5) Logika ---
+  function genKgLogika(d) {
+    const forms = [
+      () => { // porządek: kto najwyższy
+        const im = kgImiona(4);
+        const ord = shuffle([...im]); // ord[0] najwyższy
+        const clues = [];
+        for (let i = 0; i < 3; i++) {
+          const hi = ord[i], lo = ord[i + 1];
+          clues.push(Math.random() < 0.5 ? `${hi} jest ${kgZ(hi) ? "wyższa" : "wyższy"} od ${kgDop(lo)}` : `${lo} jest ${kgZ(lo) ? "niższa" : "niższy"} od ${kgDop(hi)}`);
+        }
+        const q = pick([["najwyższa", 0], ["najniższa", 3], ["druga pod względem wzrostu", 1]]);
+        const ans = ord[q[1]];
+        const r = kgWrap(4, `${shuffle(clues).join(". ")}. Która osoba jest <b>${q[0]}</b>?`, ans, im.filter((x) => x !== ans), kgTxt);
+        r.explain = `Od najwyższej do najniższej: ${ord.join(" > ")}. Odpowiedź: <b>${ans}</b>`;
+        return r;
+      },
+      () => { // kto zjadł ciastko: dokładnie jedna osoba mówi prawdę
+        for (let tries = 0; tries < 40; tries++) {
+          const im = kgImiona(3);
+          const st = im.map((who, i) => {
+            const t = pick(["nie_ja", "to_x", "nie_x"]);
+            const other = pick(im.filter((x) => x !== who));
+            if (t === "nie_ja") return { who, txt: "To nie ja.", ok: (c) => c !== who };
+            if (t === "to_x") return { who, txt: `To ${other}.`, ok: (c) => c === other };
+            return { who, txt: `To nie ${other}.`, ok: (c) => c !== other };
+          });
+          const nPrawd = pick([1, 2]);
+          const sol = im.filter((c) => st.filter((s) => s.ok(c)).length === nPrawd);
+          if (sol.length !== 1) continue;
+          const ans = sol[0];
+          const r = kgWrap(5, `Ktoś z trójki — ${im.join(", ")} — zjadł ostatnie ciastko. ${st.map((s) => `${s.who}: „${s.txt}”`).join(" ")} Wiadomo, że ${nPrawd === 1 ? "tylko <b>jedna</b> osoba mówi prawdę" : "dokładnie <b>dwie</b> osoby mówią prawdę"}. Kto zjadł ciastko?`, ans, [...im.filter((x) => x !== ans), "Nie da się ustalić"], kgTxt);
+          r.explain = `Sprawdzamy po kolei: ${im.map((c) => `${c} — prawdę mówi ${st.filter((s) => s.ok(c)).length}`).join("; ")}. Pasuje tylko <b>${ans}</b>`;
+          return r;
+        }
+        return genKgLogika(d);
+      },
+      () => { // waga: jabłka, gruszki, śliwki
+        const a = rint(2, 4), g = rint(1, 3), s = rint(2, 5); // a jabłka = g gruszki; 1 gruszka = s śliwek
+        const m = a * rint(2, 4); // ile jabłek pytamy (wielokrotność a)
+        const ans = (m / a) * g * s;
+        const r = kgWrap(4, `<b>${pl(a, "jabłka", "jabłek")}</b> ${a === 1 ? "waży" : "ważą"} tyle samo co <b>${g === 1 ? "1 gruszka" : pl(g, "gruszki", "gruszek")}</b>, a jedna gruszka waży tyle co <b>${pl(s, "śliwki", "śliwek")}</b>. Ile śliwek waży tyle samo co <b>${pl(m, "jabłka", "jabłek")}</b>?`, ans, [ans + s, ans - s, m * s, (m / a) * g, ans + 1]);
+        r.explain = `${kgPl(m, "jabłko", "jabłka", "jabłek")} = ${m / a} · ${g} = ${kgPl((m / a) * g, "gruszka", "gruszki", "gruszek")}, a to ${(m / a) * g} · ${s} = <b>${ans}</b> śliwek`;
+        return r;
+      },
+      () => { // uściski dłoni
+        const n = rint(5, 10 + d);
+        const ans = n * (n - 1) / 2;
+        const r = kgWrap(4, `Na spotkanie przyszło <b>${kgOsob(n)}</b>. Każda osoba podała rękę każdej innej dokładnie raz. Ile było uścisków dłoni?`, ans, [n * (n - 1), n * n, ans + n, ans - 1, 2 * n]);
+        r.explain = `Każda z ${n} osób wita ${n - 1} innych, ale każdy uścisk liczymy wtedy dwa razy: ${n} · ${n - 1} : 2 = <b>${ans}</b>`;
+        return r;
+      },
+      () => { // skarpetki w ciemności (szufladkowa)
+        const k = rint(2, 4), kolory = ["czarnych", "białych", "szarych", "niebieskich"].slice(0, k);
+        const ile = kolory.map(() => rint(4, 12));
+        const ans = k + 1;
+        const r = kgWrap(5, `W szufladzie są skarpetki: ${kolory.map((c, i) => `${ile[i]} ${c}`).join(", ")}. Po ciemku wyciągamy skarpetki pojedynczo. Ile skarpetek trzeba wyjąć, aby na pewno mieć dwie w tym samym kolorze?`, ans, [k, 2, ans + 1, Math.min(...ile) + 1, ile.reduce((x, y) => x + y) / 2]);
+        r.explain = `Kolorów jest ${k}. Przy pechu pierwsze ${k} skarpetki będą każda w innym kolorze, ale ${k + 1}. musi powtórzyć kolor: <b>${ans}</b>`;
+        return r;
+      },
+      () => { // kłamstwo: ile osób ma rację o liczbie
+        const x = rint(10, 60);
+        const [A, B, C] = kgImiona(3);
+        // trzy zdania o liczbie x: dwa prawdziwe, jedno fałszywe → pytamy, które jest fałszywe
+        const pz = [3, 4, 5, 7].find((p) => x % p !== 0), mn = x - rint(1, 9);
+        const zd = shuffle([
+          { who: A, txt: `Ta liczba jest ${x % 2 === 0 ? "parzysta" : "nieparzysta"}.`, ok: true },
+          { who: B, txt: `Ta liczba jest większa od ${mn}.`, ok: true },
+          { who: C, txt: `Ta liczba dzieli się przez ${pz}.`, ok: false }
+        ]);
+        const zly = zd.find((z) => !z.ok).who;
+        const r = kgWrap(4, `Pomyślano liczbę <b>${x}</b>. Troje dzieci powiedziało o niej: ${zd.map((z) => `${z.who}: „${z.txt}”`).join(" ")} Kto się pomylił?`, zly, [...zd.filter((z) => z.ok).map((z) => z.who), "Nikt"], kgTxt);
+        r.explain = `${x} jest ${x % 2 === 0 ? "parzysta" : "nieparzysta"} i większa od ${mn}, ale NIE dzieli się przez ${pz}. ${kgZ(zly) ? "Pomyliła" : "Pomylił"} się <b>${zly}</b>`;
+        return r;
+      }
+    ];
+    return pick(forms)();
+  }
+
+  // --- 6) Figury w głowie ---
+  function genKgFigury(d) {
+    const forms = [
+      () => { // k kwadratów w rzędzie → pole kwadratu
+        const k = rint(2, 5), s = rint(2, 8), P = 2 * s * (k + 1);
+        const r = kgWrap(4, `Prostokąt ułożono z <b>${pl(k, "jednakowych kwadratów", "jednakowych kwadratów")}</b> w jednym rzędzie. Obwód prostokąta wynosi <b>${P} cm</b>. Jakie pole ma jeden kwadrat?`, s * s, [s, (s + 1) * (s + 1), (s - 1) * (s - 1), k * s * s, P / 4], (v) => `${v} cm²`);
+        r.explain = `Obwód to ${2 * (k + 1)} boków kwadratu (${k} u góry, ${k} na dole i 2 z boków): ${P} : ${2 * (k + 1)} = ${s} cm. Pole kwadratu: ${s} · ${s} = <b>${s * s} cm²</b>`;
+        return r;
+      },
+      () => { // kwadrat rozcięty na 2 prostokąty → obwód prostokąta
+        const s = rint(2, 10) * 2, P = 4 * s, ans = 3 * s;
+        const r = kgWrap(4, `Kwadrat o obwodzie <b>${P} cm</b> rozcięto na dwa jednakowe prostokąty. Jaki obwód ma każdy z tych prostokątów?`, ans, [P / 2, P, ans + s / 2, ans - s / 2, s * s / 2], (v) => `${v} cm`);
+        r.explain = `Bok kwadratu: ${P} : 4 = ${s} cm. Prostokąt ma boki ${s} i ${s / 2}, obwód 2 · (${s} + ${s / 2}) = <b>${ans} cm</b>`;
+        return r;
+      },
+      () => { // drut: prostokąt, bok 2× dłuższy → pole
+        const a = rint(2, 9 + d), k = pick([2, 3]), L = 2 * (a + k * a), ans = a * k * a;
+        const r = kgWrap(4, `Z drutu o długości <b>${L} cm</b> zrobiono prostokąt, którego jeden bok jest <b>${k}</b> razy dłuższy od drugiego. Jakie pole ma ten prostokąt?`, ans, [(L / 4) * (L / 4), ans + a, a * (k * a + 1), 2 * ans, L], (v) => `${v} cm²`);
+        r.explain = `Boki: a i ${k}a, obwód ${2 * (k + 1)}a = ${L}, więc a = ${a} cm. Pole: ${a} · ${k * a} = <b>${ans} cm²</b>`;
+        return r;
+      },
+      () => { // sześcian z kostek: niewidoczne w środku
+        const n = rint(3, 5 + Math.min(2, d)), ans = Math.pow(n - 2, 3);
+        const r = kgWrap(5, `Z małych sześcianów sklejono duży sześcian o krawędzi <b>${n}</b> sześcianów. Ile małych sześcianów jest całkowicie w środku i nie widać ich z zewnątrz?`, ans, [Math.pow(n, 3) - 6 * n * n, Math.pow(n - 1, 3), Math.pow(n, 3) - Math.pow(n - 1, 3), 6 * (n - 2) * (n - 2), Math.pow(n - 2, 2)]);
+        r.explain = `W środku jest sześcian o krawędzi ${n} − 2 = ${n - 2}: ${n - 2} · ${n - 2} · ${n - 2} = <b>${ans}</b>`;
+        return r;
+      },
+      () => { // sześcian: ile kostek ma dokładnie 2 pomalowane ściany (krawędzie)
+        const n = rint(3, 6), ans = 12 * (n - 2);
+        const r = kgWrap(5, `Sześcian o krawędzi <b>${n}</b> sklejono z małych sześcianów i pomalowano z zewnątrz. Ile małych sześcianów ma pomalowane <b>dokładnie dwie</b> ściany?`, ans, [8, 6 * (n - 2) * (n - 2), 12 * (n - 1), ans + 8, 12 * n]);
+        r.explain = `Takie sześciany leżą na krawędziach (bez narożników). Krawędzi jest 12, na każdej ${n} − 2 = ${kgPl(n - 2, "sześcian", "sześciany", "sześcianów")}: 12 · ${n - 2} = <b>${ans}</b>`;
+        return r;
+      },
+      () => { // ile prostokątów o całkowitych bokach i obwodzie P
+        const half = rint(5, 14), P = 2 * half;
+        const ans = Math.floor(half / 2);
+        const lst = []; for (let a = 1; a <= half - a; a++) lst.push(`${a}×${half - a}`);
+        const r = kgWrap(5, `Ile jest różnych prostokątów o obwodzie <b>${P} cm</b>, których boki mają długości wyrażone całymi centymetrami? (Kwadrat też jest prostokątem.)`, ans, [half - 1, half, ans + 1, ans - 1, P / 4]);
+        r.explain = `Suma dwóch sąsiednich boków to ${P} : 2 = ${half}. Pary: ${lst.join(", ")} — razem <b>${ans}</b>`;
+        return r;
+      },
+      () => { // pole kwadratu → obwód
+        const s = rint(3, 12 + d), A = s * s;
+        const r = kgWrap(3, `Pole kwadratu wynosi <b>${A} cm²</b>. Jaki jest jego obwód?`, 4 * s, [A / 2, 2 * s, 4 * s + 4, 4 * s - 4, A], (v) => `${v} cm`);
+        r.explain = `Bok: ${s} · ${s} = ${A}, więc bok ma ${s} cm. Obwód: 4 · ${s} = <b>${4 * s} cm</b>`;
+        return r;
+      }
+    ];
+    return pick(forms)();
+  }
+
   // --- MATEMATYKA: działy (zakładki) i tematy (chipy) z generatorami zadań ---
   const SUBJECTS = [
     { key: "aryt_d", name: "Arytmetyka", icon: "🔢", cats: [
@@ -1265,6 +1634,14 @@
     { key: "geom_d", name: "Geometria", icon: "📐", cats: [
       { key: "geom", name: "Pola figur", icon: "▦", fn: (d) => genGeom(d, ["prost-pole", "kwadrat-pole", "trojkat-pole"]) },
       { key: "geom_obw", name: "Obwody", icon: "▭", fn: (d) => genGeom(d, ["prost-obw", "kwadrat-obw"]) }
+    ] },
+    { key: "kg_d", name: "Kangur", icon: "🦘", cats: [
+      { key: "kg_czas", name: "Czas i zegar", icon: "🕐", fn: genKgCzas },
+      { key: "kg_cyfry", name: "Kostka i cyfry", icon: "🎲", fn: genKgCyfry },
+      { key: "kg_zag", name: "Zagadki liczbowe", icon: "🍎", fn: genKgZagadki },
+      { key: "kg_rytm", name: "Wzory i rytmy", icon: "🔁", fn: genKgRytm },
+      { key: "kg_log", name: "Logika", icon: "🧩", fn: genKgLogika },
+      { key: "kg_fig", name: "Figury w głowie", icon: "🧊", fn: genKgFigury }
     ] }
   ];
 
