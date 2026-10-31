@@ -265,6 +265,14 @@
   .prompt .q-story.q-set { font-size: .5em; word-spacing: .35em; }
   .feedback .fb-text .kol { display: block; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 15px; line-height: 1.3; white-space: pre; margin: 6px 0; color: inherit; }
 
+  /* rysunki do zadań z kątów */
+  .q-fig { display: block; width: min(100%, 320px); height: auto; margin: 6px auto 4px; overflow: visible; }
+  .q-fig line, .q-fig path, .q-fig polygon, .q-fig circle { stroke: currentColor; stroke-width: 2.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .q-fig polygon { fill: currentColor; fill-opacity: .06; }
+  .q-fig .arc { stroke: var(--accent); stroke-width: 2.25; }
+  .q-fig text { fill: currentColor; stroke: none; font: 700 15px var(--font-body); text-anchor: middle; dominant-baseline: central; letter-spacing: 0; paint-order: stroke; stroke: var(--surface); stroke-width: 5px; stroke-linejoin: round; }
+  .q-fig text.lab { font-style: italic; font-weight: 600; }
+
   .options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   @media (max-width: 460px) { .options { grid-template-columns: 1fr; } }
 
@@ -1615,6 +1623,282 @@
     return pick(forms)();
   }
 
+  // --- KĄTY (wg GWO „Matematyka z plusem 6", s. 60–68) — zadania z rysunkami SVG ---
+  const deg = (v) => `${v}°`;
+  const degOpts = (ans, wrongs, spread) => makeOptions(ans, uniq(wrongs || []).filter((x) => Number.isFinite(x) && x > 0 && x !== ans).concat(nearMisses(ans, spread || 5).filter((x) => x > 0)), deg);
+  const okr = (lo, hi, d) => d >= 3 ? rint(lo, hi) : rint(Math.ceil(lo / 5), Math.floor(hi / 5)) * 5; // na niższych poziomach wielokrotności 5°
+  const degStory = (t) => story(t);
+  const nie90 = (lo, hi, d) => { let a; do { a = okr(lo, hi, d); } while (a === 90); return a; };
+  // geometria SVG: kąty matematyczne (0° w prawo, rosną przeciwnie do wskazówek), ekran ma y w dół
+  const P = (cx, cy, r, a) => [cx + r * Math.cos(a * Math.PI / 180), cy - r * Math.sin(a * Math.PI / 180)];
+  const f1 = (v) => (Math.round(v * 10) / 10).toString();
+  function arcD(cx, cy, r, a1, a2) { // łuk od a1 do a2 (a2 > a1)
+    const [x1, y1] = P(cx, cy, r, a1), [x2, y2] = P(cx, cy, r, a2);
+    return `M${f1(x1)} ${f1(y1)} A${r} ${r} 0 ${a2 - a1 > 180 ? 1 : 0} 0 ${f1(x2)} ${f1(y2)}`;
+  }
+  const arcEl = (cx, cy, r, a1, a2) => `<path class="arc" d="${arcD(cx, cy, r, a1, a2)}"/>`;
+  function rtMark(cx, cy, a1) { // znak kąta prostego: kwadracik między ramionami a1 i a1+90
+    const s = 13, [q1x, q1y] = P(cx, cy, s, a1), [q2x, q2y] = P(cx, cy, s, a1 + 90), [kx, ky] = P(cx, cy, s * Math.SQRT2, a1 + 45);
+    return `<path class="arc" d="M${f1(q1x)} ${f1(q1y)} L${f1(kx)} ${f1(ky)} L${f1(q2x)} ${f1(q2y)}"/>`;
+  }
+  const svgWrap = (w, h, inner) => `<svg class="q-fig" viewBox="0 0 ${w} ${h}" style="aspect-ratio:${w}/${h}" aria-hidden="true">${inner}</svg>`;
+  const ln = (x1, y1, x2, y2) => `<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}"/>`;
+  const ray = (cx, cy, len, a) => { const [x, y] = P(cx, cy, len, a); return ln(cx, cy, x, y); };
+  const txt = (x, y, t, cls) => `<text x="${f1(x)}" y="${f1(y)}"${cls ? ` class="${cls}"` : ""}>${t}</text>`;
+  const txtAt = (cx, cy, r, a, t, cls) => { const [x, y] = P(cx, cy, r, a); return txt(x, y, t, cls); };
+
+  // pojedynczy kąt o mierze a (do rozpoznawania rodzaju)
+  function angFig(a) {
+    if (a > 180 && a < 360) { const cx = 150, cy = 80; return svgWrap(300, 170, ray(cx, cy, 85, 0) + ray(cx, cy, 85, a) + arcEl(cx, cy, 24, 0, a)); }
+    const cx = 150, cy = 118;
+    if (a === 360) return svgWrap(300, 140, ray(cx, cy, 110, 0) + `<circle class="arc" cx="${cx}" cy="${cy}" r="22"/>`);
+    const mark = a === 90 ? rtMark(cx, cy, 0) : arcEl(cx, cy, 26, 0, a);
+    return svgWrap(300, 140, ray(cx, cy, 110, 0) + ray(cx, cy, 110, a) + mark);
+  }
+  // kąty przyległe: prosta + półprosta pod kątem a; etykiety [prawa, lewa]
+  function adjFig(a, labR, labL) {
+    const cx = 150, cy = 115;
+    return svgWrap(300, 130, ln(12, cy, 288, cy) + ray(cx, cy, 108, a) + arcEl(cx, cy, 26, 0, a) + arcEl(cx, cy, 32, a, 180)
+      + txtAt(cx, cy, 58, a / 2, labR) + txtAt(cx, cy, 62, (a + 180) / 2, labL));
+  }
+  // kąty wierzchołkowe: dwie proste przecinające się pod kątem a; regiony 0 (prawo), 1 (góra), 2 (lewo), 3 (dół)
+  function vertFig(a, labs) {
+    const cx = 150, cy = 82, h = a / 2, L = Math.min(140, 76 / Math.max(Math.sin(h * Math.PI / 180), 0.01));
+    let out = ray(cx, cy, L, h) + ray(cx, cy, L, 180 + h) + ray(cx, cy, L, -h) + ray(cx, cy, L, 180 - h);
+    const span = [[-h, h], [h, 180 - h], [180 - h, 180 + h], [180 + h, 360 - h]];
+    labs.forEach((t, i) => { if (!t) return; const [s, e] = span[i]; out += arcEl(cx, cy, 24, s, e) + txtAt(cx, cy, 50, (s + e) / 2, t); });
+    return svgWrap(300, 164, out);
+  }
+  // proste równoległe a ∥ b przecięte prostą pod kątem a; etykiety w regionach (0: prawo-góra, 1: lewo-góra, 2: lewo-dół, 3: prawo-dół) przy dolnym i górnym przecięciu
+  function parFig(a, rBot, labBot, rTop, labTop) {
+    const yT = 42, yB = 122, t = Math.tan(a * Math.PI / 180);
+    const xB = 150 - 40 / t, xT = 150 + 40 / t;
+    let out = ln(12, yT, 288, yT) + ln(12, yB, 288, yB) + ln(150 - 62 / t, 144, 150 + 62 / t, 20);
+    out += txt(14, yT - 12, "a", "lab") + txt(14, yB - 12, "b", "lab");
+    const reg = (cx, cy, r, lab) => { const s = [0, a, 180, 180 + a][r], e = [a, 180, 180 + a, 360][r]; return arcEl(cx, cy, 18, s, e) + txtAt(cx, cy, 38, (s + e) / 2, lab); };
+    out += reg(xB, yB, rBot, labBot) + reg(xT, yT, rTop, labTop);
+    return svgWrap(300, 164, out);
+  }
+  // trzy półproste z O: OA (0°), OB (b), OC (c); etykiety kątów AOB, BOC, AOC (null = nie pokazuj)
+  function raysFig(b, c, lAOB, lBOC, lAOC) {
+    const ox = 34, oy = 138, L = 112;
+    let out = ray(ox, oy, 230, 0) + ray(ox, oy, L, b) + ray(ox, oy, L, c);
+    out += txt(ox - 12, oy + 4, "O", "lab") + txt(ox + 244, oy + 4, "A", "lab") + txtAt(ox, oy, L + 13, b, "B", "lab") + txtAt(ox, oy, L + 13, c, "C", "lab");
+    if (lAOB) out += arcEl(ox, oy, 30, 0, b) + txtAt(ox, oy, 50, b / 2, lAOB);
+    if (lBOC) out += arcEl(ox, oy, 42, b, c) + txtAt(ox, oy, 64, (b + c) / 2, lBOC);
+    if (lAOC) out += arcEl(ox, oy, 80, 0, c) + txtAt(ox, oy, 98, c / 2, lAOC);
+    return svgWrap(300, 156, out);
+  }
+  // wielokąt wypukły (wierzchołki w układzie matematycznym, y w górę) z łukami i etykietami kątów; labels[i] = {t, rt}
+  function polyFig(pts, labels) {
+    const W = 300, H = 168, m = 34;
+    const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+    const minx = Math.min(...xs), maxx = Math.max(...xs), miny = Math.min(...ys), maxy = Math.max(...ys);
+    const s = Math.min((W - 2 * m) / (maxx - minx), (H - 2 * m) / (maxy - miny));
+    const ox = (W - s * (maxx - minx)) / 2, oy = (H - s * (maxy - miny)) / 2;
+    const S = pts.map(([x, y]) => [ox + s * (x - minx), H - (oy + s * (y - miny))]);
+    let out = `<polygon points="${S.map((p) => f1(p[0]) + "," + f1(p[1])).join(" ")}"/>`;
+    const n = S.length;
+    S.forEach(([vx, vy], i) => {
+      const lab = labels[i]; if (!lab) return;
+      const [px, py] = S[(i + n - 1) % n], [nx, ny] = S[(i + 1) % n];
+      const ap = Math.atan2(vy - py, px - vx) * 180 / Math.PI, an = Math.atan2(vy - ny, nx - vx) * 180 / Math.PI;
+      let a1 = ap, dlt = ((an - ap) % 360 + 360) % 360;
+      if (dlt > 180) { a1 = an; dlt = 360 - dlt; }
+      const mid = a1 + dlt / 2;
+      out += lab.rt ? rtMark(vx, vy, a1) : arcEl(vx, vy, 20, a1, a1 + dlt);
+      if (lab.t) {
+        const eMin = Math.min(Math.hypot(px - vx, py - vy), Math.hypot(nx - vx, ny - vy));
+        out += dlt < 50 ? txtAt(vx, vy, 20, mid + 180, lab.t) : txtAt(vx, vy, Math.max(26, Math.min(lab.rt ? 34 : 40, eMin * 0.34)), mid, lab.t);
+      }
+    });
+    return svgWrap(W, H, out);
+  }
+  const triPts = (al, be) => { const ta = Math.tan(al * Math.PI / 180), tb = Math.tan(be * Math.PI / 180); const C = al === 90 ? [0, tb] : be === 90 ? [1, ta] : [tb / (ta + tb), ta * tb / (ta + tb)]; return [[0, 0], [1, 0], C]; };
+  const cot = (a) => 1 / Math.tan(a * Math.PI / 180);
+  const paraPts = (al) => { const h = 0.5, dx = h * cot(al); return [[0, 0], [1, 0], [1 + dx, h], [dx, h]]; };
+  const trapPts = (al, be) => { const cs = cot(al) + cot(be); const h = cs > 0 ? Math.min(0.5, 0.8 / cs) : 0.45; return [[0, 0], [1, 0], [1 - h * cot(be), h], [h * cot(al), h]]; };
+  const RODZAJE = ["ostry", "prosty", "rozwarty", "półpełny", "wklęsły", "pełny"];
+  const rodzajKata = (a) => a < 90 ? "ostry" : a === 90 ? "prosty" : a < 180 ? "rozwarty" : a === 180 ? "półpełny" : a < 360 ? "wklęsły" : "pełny";
+  const RODZAJ_DLACZEGO = { ostry: "ma mniej niż 90°", prosty: "ma dokładnie 90°", rozwarty: "ma więcej niż 90° i mniej niż 180°", "półpełny": "ma dokładnie 180°", "wklęsły": "ma więcej niż 180° i mniej niż 360°", "pełny": "ma 360°" };
+  const losujMiare = (d) => pick([() => okr(15, 75, d), () => 90, () => okr(105, 165, d), () => 180, () => okr(195, 340, d), () => 360])();
+  const katQ = (lead1, fig, big, ans, wrongs, explain, render) => ({ cat: "Kąty", promptHTML: lead(lead1) + (fig || "") + (big || ""), options: render ? makeOptions(ans, wrongs, render) : degOpts(ans, wrongs), explain });
+
+  function genKaty(d) {
+    const forms = [
+      () => { // rodzaj kąta z rysunku
+        const a = losujMiare(d), ans = rodzajKata(a);
+        const r = katQ("Jaki to kąt?", angFig(a), "", ans, shuffle(RODZAJE.filter((x) => x !== ans)), "", kgTxt);
+        r.explain = `To kąt <b>${ans}</b> — ${RODZAJ_DLACZEGO[ans]} (ten ma ${a}°).`;
+        return r;
+      },
+      () => { // rodzaj kąta z miary
+        const a = losujMiare(d), ans = rodzajKata(a);
+        const r = katQ("Jaki to rodzaj kąta?", "", `<span class="q-set">${a}°</span>`, ans, shuffle(RODZAJE.filter((x) => x !== ans)), "", kgTxt);
+        r.explain = `Kąt o mierze ${a}° to kąt <b>${ans}</b> — ${RODZAJ_DLACZEGO[ans]}.`;
+        return r;
+      },
+      () => { // przyległe z rysunku
+        const a = nie90(20, 160, d), left = Math.random() < 0.5, ans = 180 - a;
+        const fig = left ? adjFig(a, deg(a), "β") : adjFig(180 - a, "β", deg(a));
+        return katQ("Kąty przyległe. Ile wynosi β?", fig, "", ans, [90 - a, 360 - a, a, 180 + a], `Kąty przyległe razem tworzą kąt półpełny: β = 180° − ${a}° = <b>${ans}°</b>.`);
+      },
+      () => { // wierzchołkowe / przyległe z rysunku dwóch prostych
+        const a = nie90(25, 155, d);
+        const g = rint(0, 3), rel = pick(["w", "p", "p"]); // w = wierzchołkowy, p = przyległy
+        const q = rel === "w" ? (g + 2) % 4 : (g + pick([1, 3])) % 4;
+        const val = (i) => i % 2 === 0 ? a : 180 - a;
+        const labs = [null, null, null, null]; labs[g] = deg(val(g)); labs[q] = "β";
+        const ans = val(q);
+        const expl = rel === "w" ? `β i kąt ${val(g)}° to kąty <b>wierzchołkowe</b> — mają równe miary, więc β = <b>${ans}°</b>.`
+          : `β i kąt ${val(g)}° to kąty <b>przyległe</b> — razem dają 180°, więc β = 180° − ${val(g)}° = <b>${ans}°</b>.`;
+        return katQ("Dwie proste się przecinają. Ile wynosi β?", vertFig(a, labs), "", ans, [180 - ans, 90 - ans, 360 - ans], expl);
+      },
+      () => { // przyległe: jeden N razy większy
+        const N = pick([2, 3, 4, 5, 8, 9]), small = 180 / (N + 1), bigger = Math.random() < 0.5;
+        const ans = bigger ? small * N : small;
+        return katQ("Kąty przyległe", "", degStory(`Jeden z dwóch kątów przyległych jest <b>${N} razy większy</b> od drugiego. Ile stopni ma <b>${bigger ? "większy" : "mniejszy"}</b> z nich?`), ans,
+          [bigger ? small : small * N, 180 / N, 90 / N, 180 - 180 / N], `Mniejszy kąt to 1 część, większy to ${N} części — razem ${N + 1} części = 180°. Jedna część: 180° : ${N + 1} = ${small}°. ${bigger ? `Większy: ${N} · ${small}° = <b>${ans}°</b>.` : `Mniejszy: <b>${ans}°</b>.`}`);
+      },
+      () => { // przyległe: różnica
+        const r2 = rint(5, 40 + d * 5) * 2, big = (180 + r2) / 2, bigger = Math.random() < 0.5, ans = bigger ? big : 180 - big;
+        return katQ("Kąty przyległe", "", degStory(`Dwa kąty przyległe różnią się o <b>${r2}°</b>. Ile stopni ma <b>${bigger ? "większy" : "mniejszy"}</b> z nich?`), ans,
+          [bigger ? 180 - big : big, 90 + r2, 90 - r2, 180 - r2], `Suma kątów przyległych to 180°. Gdyby były równe, każdy miałby 90°. Różnica ${r2}° rozkłada się po połowie: 90° + ${r2 / 2}° = ${big}° i 90° − ${r2 / 2}° = ${180 - big}°. Odpowiedź: <b>${ans}°</b>.`);
+      },
+      () => { // zegar: kąt między wskazówkami o pełnej godzinie (lub :30 na wyższych poziomach)
+        const half = d >= 2 && Math.random() < 0.5; let h; do { h = rint(1, 23); } while (!half && h === 12);
+        const hh = h % 12, hourDeg = hh * 30 + (half ? 15 : 0), minDeg = half ? 180 : 0;
+        const diff = Math.abs(hourDeg - minDeg), ans = Math.min(diff, 360 - diff);
+        const g = `${h}:${half ? "30" : "00"}`;
+        const expl = half
+          ? `O ${g} wskazówka minutowa pokazuje 6 (180°), a godzinowa jest w połowie między ${hh === 0 ? 12 : hh} a ${hh + 1 === 12 ? 12 : hh + 1} (${hourDeg}°). Różnica: <b>${ans}°</b>.`
+          : `Między sąsiednimi godzinami na tarczy jest 360° : 12 = 30°. O ${g} wskazówki dzieli ${kgPl(Math.min(hh, 12 - hh), "godzina", "godziny", "godzin")} · 30° = <b>${ans}°</b>.`;
+        return katQ("Zegar", "", degStory(`Jaką miarę ma <b>mniejszy</b> kąt między wskazówkami zegara o godzinie <b>${g}</b>?`), ans, [hh * 30, hh * 15, 360 - ans, hh * 30 + 30, half ? diff : hh * 6], expl);
+      },
+      () => { // obrót wskazówek
+        const f = pick([
+          { t: "wskazówka godzinowa w ciągu <b>1 godziny</b>", a: 30, e: "Wskazówka godzinowa obiega tarczę (360°) w 12 godzin: 360° : 12 = <b>30°</b>." },
+          { t: "wskazówka minutowa w ciągu <b>1 minuty</b>", a: 6, e: "Wskazówka minutowa obiega tarczę (360°) w 60 minut: 360° : 60 = <b>6°</b>." },
+          { t: "wskazówka sekundowa w ciągu <b>1 sekundy</b>", a: 6, e: "Wskazówka sekundowa obiega tarczę (360°) w 60 sekund: 360° : 60 = <b>6°</b>." },
+          { t: "wskazówka minutowa w ciągu <b>kwadransa</b>", a: 90, e: "Kwadrans to ¼ godziny, więc ¼ pełnego obrotu: 360° : 4 = <b>90°</b>." },
+          { t: "wskazówka minutowa w ciągu <b>pół godziny</b>", a: 180, e: "Pół godziny to pół obrotu: 360° : 2 = <b>180°</b>." },
+          { t: "wskazówka godzinowa w ciągu <b>pół godziny</b>", a: 15, e: "W godzinę wskazówka godzinowa obraca się o 30°, więc w pół godziny o połowę: <b>15°</b>." },
+          ...[2, 3, 4, 5, 10].map((n) => ({ t: `wskazówka minutowa w ciągu <b>${n} minut</b>`, a: 6 * n, e: `W 1 minutę wskazówka minutowa obraca się o 360° : 60 = 6°, więc w ${n} minut o ${n} · 6° = <b>${6 * n}°</b>.` })),
+          ...[2, 3, 4, 5].map((n) => ({ t: `wskazówka godzinowa w ciągu <b>${n} godzin</b>`, a: 30 * n, e: `W 1 godzinę wskazówka godzinowa obraca się o 360° : 12 = 30°, więc w ${n} godzin o ${n} · 30° = <b>${30 * n}°</b>.` }))
+        ]);
+        return katQ("Zegar", "", degStory(`O jaki kąt obraca się ${f.t}?`), f.a, [360 / f.a, f.a * 2, f.a / 2, f.a + 30, f.a * 5, 360 - f.a].filter((x) => Number.isInteger(x)), f.e);
+      },
+      () => { // proste równoległe przecięte trzecią prostą
+        const a = nie90(35, 145, d);
+        const rb = rint(0, 3), rt = rint(0, 3);
+        const val = (i) => i % 2 === 0 ? a : 180 - a;
+        const g = val(rb), ans = val(rt);
+        const same = (rt - rb + 4) % 4;
+        const nazwa = same === 0 ? "odpowiadające" : same === 2 ? "naprzemianległe" : null;
+        const expl = nazwa ? `Przy prostych równoległych kąty <b>${nazwa}</b> mają równe miary, więc β = <b>${ans}°</b>.`
+          : `Kąt β jest przyległy do kąta równego ${g}° (kąty odpowiadające lub naprzemianległe przy prostych równoległych mają równe miary), więc β = 180° − ${g}° = <b>${ans}°</b>.`;
+        return katQ("Proste a i b są równoległe. Ile wynosi β?", parFig(a, rb, deg(g), rt, "β"), "", ans, [180 - ans, 90 - ans, 360 - ans, 90 + ans], expl);
+      },
+      () => { // półproste OA, OB, OC — kąt sumaryczny lub różnica
+        const b = okr(25, 55, d), c = Math.min(b + okr(25, 55, d), 85);
+        const aob = b, boc = c - b, aoc = c;
+        const kind = pick(["aoc", "boc", "aob"]);
+        let fig, ans, expl, wrongs;
+        if (kind === "aoc") { fig = raysFig(b, c, deg(aob), deg(boc), null); ans = aoc; expl = `Kąt AOC składa się z kątów AOB i BOC: ${aob}° + ${boc}° = <b>${aoc}°</b>.`; wrongs = [Math.abs(aob - boc), 180 - aoc, aob, boc]; }
+        else if (kind === "boc") { fig = raysFig(b, c, deg(aob), null, deg(aoc)); ans = boc; expl = `Kąt BOC to część kąta AOC poza kątem AOB: ${aoc}° − ${aob}° = <b>${boc}°</b>.`; wrongs = [aoc + aob, 180 - aoc, aob, aoc]; }
+        else { fig = raysFig(b, c, null, deg(boc), deg(aoc)); ans = aob; expl = `Kąt AOB to część kąta AOC poza kątem BOC: ${aoc}° − ${boc}° = <b>${aob}°</b>.`; wrongs = [aoc + boc, 180 - aoc, boc, aoc]; }
+        const nm = { aoc: "AOC", boc: "BOC", aob: "AOB" }[kind];
+        return katQ(`Ile wynosi kąt ${nm}?`, fig, "", ans, wrongs, expl);
+      },
+      () => katQ("Kąt wklęsły", "", degStory("Ramiona kąta <b>wklęsłego</b> są do siebie prostopadłe. Jaką miarę ma ten kąt?"), 270, [90, 180, 360, 135], "Prostopadłe ramiona tworzą kąt prosty (90°) i kąt wklęsły, które razem dają 360°: 360° − 90° = <b>270°</b>.")
+    ];
+    // rzadziej: tekstowe, częściej: rysunkowe
+    const weights = [3, 1, 3, 3, 1, 1, 2, 1, 3, 3, 0.3];
+    let r = Math.random() * weights.reduce((s, w) => s + w, 0), i = 0;
+    while (r > weights[i]) { r -= weights[i]; i++; }
+    return forms[i]();
+  }
+
+  const figQ = (lead1, fig, ans, wrongs, explain) => ({ cat: "Kąty w figurach", promptHTML: lead(lead1) + fig, options: degOpts(ans, wrongs), explain });
+  function genKatyFig(d) {
+    const G = ["α", "β", "γ", "δ"];
+    const forms = [
+      () => { // trójkąt dowolny: trzeci kąt
+        const al = okr(25, 110, d); const be = okr(25, Math.min(110, 155 - al), d); const ga = 180 - al - be;
+        const which = rint(0, 2), vals = [al, be, ga];
+        const labels = vals.map((v, i) => i === which ? { t: G[i] } : v === 90 ? { rt: true } : { t: deg(v) });
+        const other = vals.filter((_, i) => i !== which);
+        return figQ(`Ile wynosi ${G[which]}?`, polyFig(triPts(al, be), labels), vals[which], [360 - other[0] - other[1], 90 - Math.min(...other), other[0] + other[1], 180 - Math.max(...other)],
+          `Suma kątów trójkąta to 180°: ${G[which]} = 180° − ${other[0]}° − ${other[1]}° = <b>${vals[which]}°</b>.`);
+      },
+      () => { // prostokątny: drugi kąt ostry
+        const a = okr(20, 70, d), ans = 90 - a, flip = Math.random() < 0.5;
+        const labels = [{ rt: true }, { t: flip ? "β" : deg(a) }, { t: flip ? deg(a) : "β" }];
+        return figQ("Trójkąt prostokątny. Ile wynosi β?", polyFig(triPts(90, a), labels), ans, [180 - a, a, 90 + a, 45],
+          `Kąt prosty ma 90°, więc na dwa kąty ostre zostaje 180° − 90° = 90°. β = 90° − ${a}° = <b>${ans}°</b>.`);
+      },
+      () => { // równoramienny: kąt przy podstawie ↔ kąt przy wierzchołku
+        const b = okr(25, 80, d), top = 180 - 2 * b, askTop = Math.random() < 0.5;
+        const labels = askTop ? [{ t: deg(b) }, { t: deg(b) }, { t: "α" }] : [{ t: "α" }, { t: "α" }, { t: deg(top) }];
+        const ans = askTop ? top : b;
+        return figQ("Trójkąt równoramienny. Ile wynosi α?", polyFig(triPts(b, b), labels), ans,
+          askTop ? [180 - b, 90 - b, b, 2 * b] : [180 - top, (180 - top), 90 - top, top, 180 - 2 * top],
+          askTop ? `W trójkącie równoramiennym kąty przy podstawie są równe (po ${b}°). α = 180° − 2 · ${b}° = <b>${top}°</b>.`
+            : `Kąty przy podstawie są równe. Razem mają 180° − ${top}° = ${180 - top}°, więc każdy: ${180 - top}° : 2 = <b>${b}°</b>.`);
+      },
+      () => { // równoboczny / prostokątny równoramienny
+        const eq = Math.random() < 0.5;
+        return eq ? figQ("Trójkąt równoboczny. Ile wynosi każdy kąt?", polyFig(triPts(60, 60), [{ t: "α" }, { t: "α" }, { t: "α" }]), 60, [90, 45, 30, 120], "W trójkącie równobocznym wszystkie kąty są równe: 180° : 3 = <b>60°</b>.")
+          : figQ("Trójkąt prostokątny równoramienny. Ile wynosi α?", polyFig(triPts(45, 45), [{ t: "α" }, { t: "α" }, { rt: true }]), 45, [60, 90, 30, 135], "Kąt prosty ma 90°, na dwa równe kąty ostre zostaje 90°: 90° : 2 = <b>45°</b>.");
+      },
+      () => { // prostokątny z różnicą kątów ostrych
+        const r2 = rint(2, 20 + d * 2) * 2, small = (90 - r2) / 2, bigger = Math.random() < 0.5, ans = bigger ? small + r2 : small;
+        return { cat: "Kąty w figurach", promptHTML: lead("Trójkąt prostokątny") + degStory(`W trójkącie prostokątnym jeden z kątów ostrych jest o <b>${r2}°</b> większy od drugiego. Ile stopni ma <b>${bigger ? "większy" : "mniejszy"}</b> kąt ostry?`),
+          options: degOpts(ans, [bigger ? small : small + r2, 90 - r2, 45 + r2, 45 - r2, 180 - r2]), explain: `Kąty ostre trójkąta prostokątnego dają razem 90°. Gdyby były równe, każdy miałby 45°; różnica ${r2}° rozkłada się po połowie: 45° − ${r2 / 2}° = ${small}° i 45° + ${r2 / 2}° = ${small + r2}°. Odpowiedź: <b>${ans}°</b>.` };
+      },
+      () => { // czworokąt: czwarty kąt (tekst)
+        const a = okr(50, 130, d), b = okr(50, 130, d), c = okr(40, Math.min(130, 320 - a - b), d), ans = 360 - a - b - c;
+        return { cat: "Kąty w figurach", promptHTML: lead("Czworokąt") + degStory(`Trzy kąty czworokąta mają miary <b>${a}°</b>, <b>${b}°</b> i <b>${c}°</b>. Ile stopni ma czwarty kąt?`),
+          options: degOpts(ans, [180 - ans, a + b + c - 180, 540 - a - b - c, Math.abs(180 - a - b)]), explain: `Suma kątów czworokąta to 360°: 360° − ${a}° − ${b}° − ${c}° = <b>${ans}°</b>.` };
+      },
+      () => { // równoległobok
+        const a = okr(35, 75, d), vals = [a, 180 - a, a, 180 - a], g = rint(0, 3), q = (g + pick([1, 2, 3])) % 4, ans = vals[q];
+        const labels = vals.map((v, i) => ({ t: i === g ? deg(v) : i === q ? "β" : null }));
+        const przeciw = (q - g + 4) % 4 === 2;
+        return figQ("Równoległobok. Ile wynosi β?", polyFig(paraPts(a), labels), ans, [180 - ans, 90 - ans, 360 - ans, 90 + ans],
+          przeciw ? `W równoległoboku kąty leżące naprzeciw siebie są równe, więc β = <b>${ans}°</b>.` : `W równoległoboku kąty przy tym samym boku dają razem 180°: β = 180° − ${vals[g]}° = <b>${ans}°</b>.`);
+      },
+      () => { // trapez: kąty przy tym samym ramieniu
+        const al = okr(40, 130, d), be = okr(40, 130, d);
+        const vals = [al, be, 180 - be, 180 - al]; // A, B, C, D
+        const q = pick([2, 3]), ans = vals[q], g = q === 2 ? 1 : 0, extra = Math.random() < 0.5 ? (g === 0 ? 1 : 0) : -1;
+        const labels = vals.map((v, i) => ({ t: i === q ? "β" : (i === g || i === extra) ? deg(v) : null }));
+        return figQ("Trapez (podstawy AB i DC). Ile wynosi β?", polyFig(trapPts(al, be), labels), ans, [vals[g], 90 - vals[g], 360 - vals[g], vals[g] + 90],
+          `W trapezie kąty leżące przy tym samym ramieniu dają razem 180°: β = 180° − ${vals[g]}° = <b>${ans}°</b>.`);
+      },
+      () => { // trapez równoramienny: kąt przy podstawie znany → inny
+        const a = okr(40, 80, d), vals = [a, a, 180 - a, 180 - a], q = pick([1, 2, 3]), ans = vals[q];
+        const labels = vals.map((v, i) => ({ t: i === 0 ? deg(v) : i === q ? "β" : null }));
+        return figQ("Trapez równoramienny (podstawy AB i DC). Ile wynosi β?", polyFig(trapPts(a, a), labels), ans, [180 - ans, 90 - a, 360 - ans, 90 + a],
+          q === 1 ? `W trapezie równoramiennym kąty przy tej samej podstawie są równe: β = <b>${ans}°</b>.` : `Kąty przy tym samym ramieniu dają 180°: β = 180° − ${a}° = <b>${ans}°</b>.`);
+      },
+      () => { // trapez równoramienny: jeden kąt N razy większy
+        const N = pick([2, 3, 5]), small = 180 / (N + 1), bigger = Math.random() < 0.5, ans = bigger ? small * N : small;
+        return { cat: "Kąty w figurach", promptHTML: lead("Trapez równoramienny") + degStory(`W trapezie równoramiennym jeden z kątów jest <b>${N} razy większy</b> od innego. Ile stopni ma <b>${bigger ? "kąt rozwarty" : "kąt ostry"}</b> tego trapezu?`),
+          options: degOpts(ans, [bigger ? small : small * N, 360 / (N + 1), 180 / N, 90 / N]), explain: `W trapezie równoramiennym kąty przy tym samym ramieniu dają 180°, a kąt ostry i rozwarty różnią się. Ostry + ${N} · ostry = 180°, więc ostry = 180° : ${N + 1} = ${small}°, rozwarty = ${small * N}°. Odpowiedź: <b>${ans}°</b>.` };
+      },
+      () => { // suma kątów wielokąta / kąt wielokąta foremnego
+        const n = pick([5, 6, 8]), nm = { 5: "pięciokąta", 6: "sześciokąta", 8: "ośmiokąta" }[n], sum = (n - 2) * 180, forem = Math.random() < 0.5;
+        return forem ? { cat: "Kąty w figurach", promptHTML: lead("Wielokąt foremny") + degStory(`Ile stopni ma każdy kąt <b>${nm} foremnego</b> (wszystkie boki i kąty równe)?`), options: degOpts(sum / n, [sum, 360 / n, 180 - 360 / n * 2, 90 + n * 5]), explain: `Suma kątów ${nm}: (${n} − 2) · 180° = ${sum}°. Każdy z ${n} kątów: ${sum}° : ${n} = <b>${sum / n}°</b>.` }
+          : { cat: "Kąty w figurach", promptHTML: lead("Suma kątów wielokąta") + degStory(`Ile wynosi suma miar kątów <b>${nm}</b>? (Podpowiedź: podziel go przekątnymi z jednego wierzchołka na trójkąty.)`), options: degOpts(sum, [n * 180, 360, (n - 1) * 180, n * 90]), explain: `Z jednego wierzchołka ${nm} wychodzą przekątne dzielące go na ${n - 2} trójkąty, każdy po 180°: ${n - 2} · 180° = <b>${sum}°</b>.` };
+      }
+    ];
+    const weights = [4, 3, 3, 1, 1.5, 1.5, 3, 3, 2, 1, d >= 2 ? 1 : 0.3];
+    let r = Math.random() * weights.reduce((s, w) => s + w, 0), i = 0;
+    while (r > weights[i]) { r -= weights[i]; i++; }
+    return forms[i]();
+  }
+
   // --- MATEMATYKA: działy (zakładki) i tematy (chipy) z generatorami zadań ---
   const SUBJECTS = [
     { key: "aryt_d", name: "Arytmetyka", icon: "🔢", cats: [
@@ -1633,7 +1917,9 @@
     ] },
     { key: "geom_d", name: "Geometria", icon: "📐", cats: [
       { key: "geom", name: "Pola figur", icon: "▦", fn: (d) => genGeom(d, ["prost-pole", "kwadrat-pole", "trojkat-pole"]) },
-      { key: "geom_obw", name: "Obwody", icon: "▭", fn: (d) => genGeom(d, ["prost-obw", "kwadrat-obw"]) }
+      { key: "geom_obw", name: "Obwody", icon: "▭", fn: (d) => genGeom(d, ["prost-obw", "kwadrat-obw"]) },
+      { key: "katy", name: "Kąty", icon: "∠", fn: genKaty },
+      { key: "katy_fig", name: "Kąty w figurach", icon: "△", fn: genKatyFig }
     ] },
     { key: "kg_d", name: "Kangur", icon: "🦘", cats: [
       { key: "kg_czas", name: "Czas i zegar", icon: "🕐", fn: genKgCzas },
