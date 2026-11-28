@@ -2208,7 +2208,74 @@
           `${MIES[m][0].toUpperCase() + MIES[m].slice(1)} ma ${L} dni, więc do końca miesiąca zostaje ${L} − ${d0} = ${zost}. Z ${n} dni zostaje jeszcze ${n} − ${zost} = ${res}, czyli wypada <b>${f(res)}</b>.`);
       }
     ];
-    return pick(forms)();
+    // --- trudniejsze, wieloetapowe zadania (od 2026-11-28) ---
+    const dniDo = (m1, d1, m2, d2, y) => { let n = d2 - d1; for (let i = m1; i < m2; i++) n += (i === 1 && przest(y) ? 29 : DNI_M[i]); return n; };
+    const msS = (s) => s < 60 ? `${s} s` : s % 60 ? `${Math.floor(s / 60)} min ${s % 60} s` : `${s / 60} min`;
+    const Wlk = (t) => t[0].toUpperCase() + t.slice(1);
+    const rozpisz = (m1, d1, m2, d2, y) => {
+      const len = (i) => i === 1 && przest(y) ? 29 : DNI_M[i], cz = [`do końca ${MIES_D[m1]} zostaje ${len(m1)} − ${d1} = ${len(m1) - d1} dni`];
+      for (let i = m1 + 1; i < m2; i++) cz.push(`cały ${MIES[i]} to ${len(i)} dni`);
+      cz.push(`potem jeszcze ${d2} dni ${MIES_D[m2]}`);
+      return Wlk(cz.join(", ")) + `. Razem: ${[len(m1) - d1].concat(Array.from({ length: m2 - m1 - 1 }, (_, j) => len(m1 + 1 + j)), [d2]).join(" + ")} = ${dniDo(m1, d1, m2, d2, y)} dni.`;
+    };
+    const trudne = [
+      () => { // ile dni między datami w różnych miesiącach
+        const y = rint(2021, 2032), m1 = rint(0, 9), m2 = m1 + rint(1, 2), d1 = rint(3, 27), d2 = rint(2, 27);
+        const n = dniDo(m1, d1, m2, d2, y), luty = m1 <= 1 && m2 > 1;
+        return ncQ(C, "Ile dni mija?", story(`Ile dni mija od <b>${d1} ${MIES_D[m1]}</b> do <b>${d2} ${MIES_D[m2]}</b> ${luty ? `<b>${y}</b> roku` : "tego samego roku"}?`), n,
+          [n + 1, n - 1, d2 - d1 + 30 * (m2 - m1), d2 - d1 + 31 * (m2 - m1), n + 2, n - 2],
+          rozpisz(m1, d1, m2, d2, y).replace(/= (\d+) dni\.$/, "= <b>$1</b> dni.") + (luty ? ` Rok ${y} ${przest(y) ? "jest przestępny, więc luty ma 29 dni" : "jest zwykły, więc luty ma 28 dni"}.` : ""));
+      },
+      () => { // dzień tygodnia w innym miesiącu
+        const i = rint(0, 6), m1 = rint(2, 9), m2 = m1 + rint(1, 2), d1 = rint(3, 27), d2 = rint(2, 27);
+        const n = dniDo(m1, d1, m2, d2, 2023), r = n % 7, a = (i + n) % 7;
+        return ncQ(C, "Dni tygodnia", story(`<b>${d1} ${MIES_D[m1]}</b> wypada ${DNI_T_B[i]}. Jaki dzień tygodnia to <b>${d2} ${MIES_D[m2]}</b> tego samego roku?`), DNI_T[a],
+          [DNI_T[(a + 1) % 7], DNI_T[(a + 6) % 7], DNI_T[(a + 2) % 7], DNI_T[(a + 5) % 7]],
+          `${rozpisz(m1, d1, m2, d2, 2023)} ${n} = ${Math.floor(n / 7)} · 7 + ${r}, więc ${r === 0 ? "wypada ten sam dzień tygodnia" : `przesuwamy się o ${kgPl(r, "dzień", "dni", "dni")} do przodu`}: <b>${DNI_T[a]}</b>.`);
+      },
+      () => { // plan lekcji z przerwami
+        const k = rint(4, 7), start = pick([430, 450, 480, 495, 535]), p = pick([5, 10]), dl = pick([15, 20, 25]), po = rint(2, k - 1);
+        const prz = (k - 2) * p + dl, tot = k * 45 + prz, ans = start + tot;
+        return ncQ(C, "Plan lekcji", story(`Lekcje zaczynają się o <b>${hhmm(start)}</b>. Każda lekcja trwa <b>45 min</b>. Przerwy mają po <b>${p} min</b>, tylko jedna — po ${po}. lekcji — trwa <b>${dl} min</b>. O której godzinie kończy się <b>${k}.</b> lekcja?`), hhmm(ans),
+          [hhmm(ans + p), hhmm(ans - dl + p), hhmm(start + k * 45), hhmm(ans + 45), hhmm(ans - 45), hhmm(ans + 10)],
+          `Lekcje: ${k} · 45 min = ${k * 45} min. Przerw między ${k} lekcjami jest ${k - 1} (po ostatniej lekcji przerwy już nie liczymy): ${k - 2} · ${p} min + ${dl} min = ${prz} min. Razem ${k * 45} + ${prz} = ${tot} min = ${hm(tot)}. ${hhmm(start)} + ${hm(tot)} = <b>${hhmm(ans)}</b>.`);
+      },
+      () => { // podróż z postojem, na wyższych poziomach przez północ
+        const a = (d >= 3 && Math.random() < 0.5 ? rint(228, 274) : rint(72, 180)) * 5;
+        const x1 = rint(13, 40) * 5, post = pick([15, 20, 25, 35, 40, 45]), x2 = rint(11, 35) * 5, tot = x1 + post + x2, ans = a + tot;
+        return ncQ(C, "Podróż", story(`Autokar wyjechał o <b>${hhmm(a)}</b>. Jechał <b>${hm(x1)}</b>, potem miał postój <b>${post} min</b> i jechał jeszcze <b>${hm(x2)}</b>. O której godzinie dotarł na miejsce?`), hhmm(ans),
+          [hhmm(ans - post), hhmm(ans + 60), hhmm(ans - 60), hhmm(ans + 10), hhmm(ans - 10), hhmm(ans + 30)],
+          `Cała podróż: ${hm(x1)} + ${post} min + ${hm(x2)} = ${tot} min = ${hm(tot)}. ${hhmm(a)} + ${hm(tot)} = <b>${hhmm(ans)}</b>${ans >= 1440 ? " następnego dnia (po 24:00 liczymy godziny od zera)" : ""}.`);
+      },
+      () => { // zegar, który się spieszy albo spóźnia
+        const s = rint(2, 6), n = rint(3, 9), sp = Math.random() < 0.5, g = pick([8, 12, 15, 18]) * 60, diff = s * n, ans = g + (sp ? diff : -diff);
+        return ncQ(C, "Zepsuty zegar", story(`Stary zegar ${sp ? "spieszy się" : "spóźnia się"} o <b>${s} min</b> na dobę. Ustawiono go dokładnie o <b>${hhmm(g)}</b>. Którą godzinę pokaże po <b>${n} dobach</b>, gdy naprawdę będzie ${hhmm(g)}?`), hhmm(ans),
+          [hhmm(g + (sp ? -diff : diff)), hhmm(g + (sp ? s : -s)), hhmm(ans + s), hhmm(ans - s), hhmm(ans + 10), hhmm(ans - 10)],
+          `Przez ${kgPl(n, "dobę", "doby", "dób")} zegar ${sp ? "pospieszy się" : "spóźni się"} o ${n} · ${s} min = ${diff} min. Zegar, który się ${sp ? "spieszy, pokazuje godzinę późniejszą" : "spóźnia, pokazuje godzinę wcześniejszą"}: ${hhmm(g)} ${sp ? "+" : "−"} ${diff} min = <b>${hhmm(ans)}</b>.`);
+      },
+      () => { // łączny czas w minutach i sekundach
+        const t = [rint(95, 200), rint(95, 200), rint(95, 200)], tot = t[0] + t[1] + t[2];
+        const M = t.reduce((x, v) => x + Math.floor(v / 60), 0), S = t.reduce((x, v) => x + v % 60, 0);
+        return ncQ(C, "Łączny czas", story(`Zawodnik przebiegł trzy okrążenia w czasach: <b>${msS(t[0])}</b>, <b>${msS(t[1])}</b> i <b>${msS(t[2])}</b>. Jaki był jego łączny czas?`), msS(tot),
+          [S >= 60 ? `${M} min ${S} s` : null, msS(tot + 60), msS(tot - 60), msS(tot + 10), msS(tot - 10), msS(tot + 20)],
+          `Minuty: ${t.map((v) => Math.floor(v / 60)).join(" + ")} = ${M} min. Sekundy: ${t.map((v) => v % 60).join(" + ")} = ${S} s${S >= 60 ? ` = ${msS(S)} (60 s to 1 min)` : ""}. Razem: <b>${msS(tot)}</b>.`);
+      },
+      () => { // godziny zapisane ułamkiem dziesiętnym → minuty
+        let qn; do { qn = rint(5, 11); } while (qn % 4 === 0);
+        const t10 = rint(1, 4), ans = qn * 15 + t10 * 6;
+        return ncQ(C, "Ile to minut?", story(`Film trwa <b>${fmtDec(qn * 25, 2)} h</b>, a reklamy przed nim <b>${fmtDec(t10, 1)} h</b>. Ile minut trwa cały seans?`), ans,
+          [qn * 25 + t10 * 10, qn * 15 + t10 * 10, qn * 25 + t10 * 6, ans + 6, ans - 6, ans + 15],
+          `1 h = 60 min. Film: ${fmtDec(qn * 25, 2)} · 60 = ${qn * 15} min. Reklamy: ${fmtDec(t10, 1)} · 60 = ${t10 * 6} min. Razem: ${qn * 15} + ${t10 * 6} = <b>${ans} min</b>. Uwaga: ${fmtDec(t10, 1)} h to nie ${t10 * 10} min — godzina ma 60 minut, nie 100.`, (v) => `${v} min`);
+      },
+      () => { // ostatni dzień obozu — liczymy razem z dniem rozpoczęcia
+        let m; do { m = rint(0, 10); } while (m === 1);
+        const L = DNI_M[m], n = rint(10, 24), d0 = rint(L - n + 2, L - 1), w = L - d0 + 1, last = n - w, f = (v, mm) => `${v} ${MIES_D[mm % 12]}`;
+        return ncQ(C, "Kalendarz", story(`Obóz zaczyna się <b>${d0} ${MIES_D[m]}</b> i trwa <b>${n} dni</b> (dzień rozpoczęcia też się liczy). Jaki jest ostatni dzień obozu?`), f(last, m + 1),
+          [f(last + 1, m + 1), last > 1 ? f(last - 1, m + 1) : f(last + 3, m + 1), f(last + 2, m + 1), f(last, m + 2)],
+          `${Wlk(MIES[m])} ma ${L} dni. Od ${d0} do ${L} ${MIES_D[m]} jest ${L} − ${d0} + 1 = ${w} dni obozu (liczymy też dzień ${d0}). Zostaje ${n} − ${w} = ${last}, więc ostatni dzień to <b>${f(last, m + 1)}</b>.`);
+      }
+    ];
+    return (Math.random() < 0.6 ? pick(trudne) : pick(forms))();
   }
 
   // jednostki: wykładnik względem najmniejszej (mm albo g) — wartości trzymamy jako liczby całkowite w mm / g
@@ -2294,7 +2361,74 @@
         ])();
       }
     ];
-    const q = pick(forms)();
+    // --- trudniejsze, wieloetapowe zadania (od 2026-11-28) ---
+    const zl = (gr) => `${Math.floor(gr / 100)},${String(gr % 100).padStart(2, "0")} zł`;
+    const trudne = [
+      () => { // trzy różne jednostki w jednym działaniu
+        if (Math.random() < 0.5) {
+          const a = rint(11, 39) * 100, b = rint(12, 95) * 10, c = rint(2, 19) * 500, ans = a + b + c / 100;
+          return ncQ(C, "Oblicz", `${fmtDec(a, 3)} km + ${b} m + ${fmtNum(c)} cm = ${hole} m`, ans, [a + b + c / 10, a / 10 + b + c / 100, a + b + c, a * 10 + b + c / 100, a + b],
+            `Wszystko w metrach: ${fmtDec(a, 3)} km = ${fmtNum(a)} m, a ${fmtNum(c)} cm = ${c / 100} m. ${fmtNum(a)} + ${b} + ${c / 100} = <b>${fmtNum(ans)} m</b>.`, (v) => optTxt(`${fmtNum(v)} m`));
+        }
+        const a = rint(5, 35) * 50, b = rint(3, 19) * 5, c = rint(4, 18) * 10, ans = a + b * 10 + c;
+        return ncQ(C, "Oblicz", `${fmtDec(a, 3)} kg + ${b} dag + ${c} g = ${hole} g`, ans, [a + b + c, a + b * 100 + c, a / 10 + b * 10 + c, a + b * 10, a * 10 + b * 10 + c],
+          `Wszystko w gramach: ${fmtDec(a, 3)} kg = ${fmtNum(a)} g, a ${b} dag = ${b * 10} g. ${fmtNum(a)} + ${b * 10} + ${c} = <b>${fmtNum(ans)} g</b>.`, (v) => optTxt(`${fmtNum(v)} g`));
+      },
+      () => { // paczka: g, dag i kg razem
+        const n = rint(2, 5), ks = pick([35, 45, 55, 65]), pud = pick([150, 250, 350]), miod = rint(6, 15) * 100;
+        const tot = pud + n * ks * 10 + miod, ans = jv(tot, "kg");
+        return ncQ(C, "Zadanie", story(`Do pudełka o masie <b>${pud} g</b> włożono <b>${kgPl(n, "książkę", "książki", "książek")}</b> po <b>${ks} dag</b> każda i słoik miodu o masie <b>${fmtDec(miod, 3)} kg</b>. Ile kilogramów waży cała paczka?`), ans,
+          [jv(tot - pud, "kg"), jv(pud + ks * 10 + miod, "kg"), jv(pud + n * ks + miod, "kg"), jv(pud + n * ks * 100 + miod, "kg")].concat(jPrzes(tot, "kg")),
+          `Wszystko w gramach: książki ${n} · ${ks} dag = ${n * ks} dag = ${fmtNum(n * ks * 10)} g, miód ${fmtDec(miod, 3)} kg = ${fmtNum(miod)} g. Razem: ${pud} + ${fmtNum(n * ks * 10)} + ${fmtNum(miod)} = ${fmtNum(tot)} g = <b>${ans}</b>.`);
+      },
+      () => { // wstążka: m, cm i dm
+        let T, n1, a, n2, b, ans;
+        do { T = rint(3, 8); n1 = rint(3, 6); a = pick([25, 35, 45]); n2 = rint(2, 4); b = pick([4, 6, 8]); ans = T * 100 - n1 * a - n2 * b * 10; } while (ans < 20);
+        return ncQ(C, "Zadanie", story(`Ze wstążki długości <b>${T} m</b> odcięto <b>${kgPl(n1, "kawałek", "kawałki", "kawałków")}</b> po <b>${a} cm</b> i <b>${kgPl(n2, "kawałek", "kawałki", "kawałków")}</b> po <b>${b} dm</b>. Ile centymetrów wstążki zostało?`), ans,
+          [T * 100 - n1 * a - n2 * b, T * 100 - n1 * a, T * 100 - n2 * b * 10, T * 100 - a - b * 10, ans + 10, ans - 10],
+          `Wszystko w centymetrach: ${T} m = ${T * 100} cm, a ${b} dm = ${b * 10} cm. Odcięto ${n1} · ${a} + ${n2} · ${b * 10} = ${n1 * a} + ${n2 * b * 10} = ${n1 * a + n2 * b * 10} cm. Zostało ${T * 100} − ${n1 * a + n2 * b * 10} = <b>${ans} cm</b>.`, (v) => optTxt(`${v} cm`));
+      },
+      () => { // cena za kilogram, czasem jeszcze reszta
+        const cena = pick([18, 24, 26, 32, 36, 42, 48]), dag = pick([15, 25, 35, 45, 65, 75, 85]), gr = cena * dag, wG = Math.random() < 0.5;
+        const ile = wG ? `${dag * 10} g` : `${dag} dag`, co = pick(["sera", "orzechów", "cukierków", "suszonych śliwek"]);
+        const licz = `${ile} = ${fmtDec(dag, 2)} kg, więc trzeba zapłacić ${fmtDec(dag, 2)} · ${cena} zł = ${zl(gr)}`;
+        if (Math.random() < 0.5) {
+          const bank = [10, 20, 50].find((x) => x * 100 > gr), res = bank * 100 - gr;
+          return ncQ(C, "Zadanie", story(`Kilogram ${co} kosztuje <b>${cena} zł</b>. ${pick(KG_IMIONA)} kupuje <b>${ile}</b> i płaci banknotem <b>${bank} zł</b>. Ile reszty dostanie?`), zl(res),
+            [zl(gr), zl(res + 100), res > 100 ? zl(res - 100) : zl(res + 200), zl(res + 10), zl(res + 50), zl(bank * 100 - gr / 10)],
+            `${licz}. Reszta: ${bank} zł − ${zl(gr)} = <b>${zl(res)}</b>.`);
+        }
+        return ncQ(C, "Zadanie", story(`Kilogram ${co} kosztuje <b>${cena} zł</b>. Ile trzeba zapłacić za <b>${ile}</b>?`), zl(gr),
+          [zl(gr / 10), zl(gr * 10), zl(gr + 100), gr > 100 ? zl(gr - 100) : zl(gr + 200), zl(gr + 50), zl(cena * 100 - gr)],
+          `${licz[0].toUpperCase() + licz.slice(1)}.`);
+      },
+      () => { // ile kursów — dzielenie z resztą, zaokrąglamy w górę
+        let lad, T10; do { lad = pick([800, 1200, 1500, 2500]); T10 = rint(35, 120); } while ((T10 * 100) % lad === 0);
+        const kg = T10 * 100, fl = Math.floor(kg / lad), ans = fl + 1;
+        return ncQ(C, "Zadanie", story(`Trzeba przewieźć <b>${fmtDec(T10, 1)} t</b> piasku samochodem, który zabiera najwyżej <b>${fmtNum(lad)} kg</b>. Ile co najmniej kursów trzeba wykonać?`), ans, [fl, ans + 1, fl - 1, ans + 2],
+          `${fmtDec(T10, 1)} t = ${fmtNum(kg)} kg. ${fmtNum(kg)} : ${fmtNum(lad)} = ${fl}, reszta ${fmtNum(kg - fl * lad)}. Po ${fl} kursach zostaje jeszcze ${fmtNum(kg - fl * lad)} kg, więc potrzeba <b>${ans}</b> kursów.`);
+      },
+      () => { // prędkość ślimaka: jednostki długości i czasu naraz
+        const v = pick([4, 6, 8, 12, 15]), min = pick([2, 5, 10, 15, 20]), mm = v * min * 60, ans = jv(mm, "m");
+        return ncQ(C, "Zadanie", story(`Ślimak pełznie z prędkością <b>${v} mm</b> na sekundę. Ile metrów pokona w ciągu <b>${min} minut</b>?`), ans,
+          [jv(v * min * 100, "m"), jv(v * min * 1000, "m")].concat(jPrzes(mm, "m")),
+          `${min} min = ${min * 60} s. Droga: ${min * 60} · ${v} mm = ${fmtNum(mm)} mm. 1 m = 1 000 mm, więc to <b>${ans}</b>.`);
+      },
+      () => { // o ile cięższy — kg z przecinkiem i wyrażenie dwumianowane
+        let a, bk, bd; do { a = rint(250, 480); bk = rint(1, 2); bd = rint(5, 95); } while (a - bk * 100 - bd < 15 || a % 10 === 0);
+        const b = bk * 100 + bd, ans = a - b, [x, y] = pick([["Arbuz", "melon"], ["Plecak Oli", "plecak Tomka"], ["Dynia", "kapusta"]]);
+        return ncQ(C, "Zadanie", story(`${x} waży <b>${fmtDec(a, 2)} kg</b>, a ${y} <b>${bk} kg ${bd} dag</b>. O ile dekagramów ${x === "Plecak Oli" ? "plecak Oli" : x.toLowerCase()} jest cięższy?`), ans,
+          [a - bd, a - bk * 10 - bd, a - bk * 100, ans + 10, ans - 10, ans + 100],
+          `Wszystko w dekagramach (1 kg = 100 dag): ${fmtDec(a, 2)} kg = ${a} dag, a ${bk} kg ${bd} dag = ${b} dag. ${a} − ${b} = <b>${ans} dag</b>.`, (v) => optTxt(`${v} dag`));
+      },
+      () => { // słupki ogrodzenia: obwód w metrach, odstęp w centymetrach
+        const w = rint(6, 16) * 25, h = rint(4, 10) * 25, obw = 2 * (w + h), ans = obw / 25;
+        return ncQ(C, "Zadanie", story(`Prostokątną działkę o wymiarach <b>${fmtDec(w, 1)} m</b> × <b>${fmtDec(h, 1)} m</b> ogrodzono płotem. Słupki stoją dookoła co <b>250 cm</b>. Ile jest słupków?`), ans,
+          [ans / 2, ans + 1, ans - 1, ans + 4, ans - 4, ans * 2],
+          `Obwód działki: 2 · (${fmtDec(w, 1)} m + ${fmtDec(h, 1)} m) = ${fmtDec(obw, 1)} m. Odstęp: 250 cm = 2,5 m. ${fmtDec(obw, 1)} : 2,5 = <b>${ans}</b>. Płot jest zamknięty dookoła, więc słupków jest tyle samo co odstępów.`);
+      }
+    ];
+    const q = (Math.random() < 0.6 ? pick(trudne) : pick(forms))();
     q.explain += `<br><small>${JEDN_TAB}</small>`;
     return q;
   }
